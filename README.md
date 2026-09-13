@@ -17,8 +17,14 @@ This means Quire works like a fast local notes workspace without locking your da
 .
 ├── README.md
 ├── quire.html
-└── LICENSE
+├── LICENSE
+└── _templates/
+    ├── Daily.md
+    ├── Meeting.md
+    └── 121.md
 ```
+
+The `_templates/` directory contains Markdown templates with placeholder variables that can be used when creating new notes. Placeholders include `{{title}}`, `{{date}}`, `{{date-long}}`, and `{{time}}`.
 
 ## Requirements
 
@@ -53,6 +59,7 @@ Click Open notes folder and choose the directory where your notes should live. A
 - Keyboard shortcuts for navigation and editing
 - Library and note search
 - Jump-to-note palette across all libraries
+- Note templates with placeholder variable substitution
 - Safe file operations with verification before delete/replace steps
 - Auto-save behavior with explicit save actions
 - Local persistence of folder access and last-used note state in IndexedDB
@@ -102,6 +109,17 @@ Quire does not upload your notes anywhere. There are no remote requests for anal
 - The jump palette indexes the text of a limited number of notes in the background
 - Relative image paths are not resolved when the app is served from `localhost`
 - Multiple Quire windows opened on the same folder may not see each other's writes immediately
+
+## Templates
+
+Templates are stored in the `_templates/` directory and can be used to create new notes with a consistent structure. Templates support placeholder variables that are substituted when creating a new note:
+
+- `{{title}}` — The title of the new note
+- `{{date}}` — Today's date in YYYY-MM-DD format
+- `{{date-long}}` — Today's date in long format (e.g., "Monday, 13 September 2026")
+- `{{time}}` — The current time in HH:MM format
+
+When creating a new note from a template, select a template and Quire will substitute these placeholders with current values.
 
 ## Contributing
 

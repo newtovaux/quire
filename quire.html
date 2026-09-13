@@ -139,6 +139,25 @@
   .lib[aria-current="true"] .name::before{background:var(--brass)}
   .count{color:var(--faint);font:11px var(--mono)}
 
+  .railswitch{display:flex;flex:1;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .railswitch button{
+    flex:1;border:0;border-right:1px solid var(--line);background:var(--panel-2);
+    color:var(--muted);font-size:12.5px;padding:4px 6px;cursor:pointer;
+  }
+  .railswitch button:last-child{border-right:0}
+  .railswitch button[aria-pressed="true"]{background:#2c2617;color:var(--brass)}
+  .item.tag .name{font:13px var(--mono)}
+  .tagbanner{
+    display:flex;align-items:baseline;gap:8px;padding:7px 12px 9px;
+    border-bottom:1px solid var(--line-soft);font-size:12px;color:var(--faint);
+  }
+  .tagbanner b{color:var(--brass);font:12.5px var(--mono);font-weight:400}
+  .reader a.tag{
+    color:var(--brass);text-decoration:none;font:.88em var(--mono);
+    background:#2c2617;padding:1px 6px;border-radius:11px;white-space:nowrap;
+  }
+  .reader a.tag:hover{background:#3a3220}
+
   .search{
     width:100%;background:var(--ink);border:1px solid var(--line);border-radius:6px;
     color:var(--text);font-size:13px;padding:5px 9px;
@@ -390,8 +409,11 @@
     <aside class="rail libs" id="libsRail">
       <button class="stub" data-expand="libs" title="Show libraries"></button>
       <div class="rail-head">
-        <h2>Libraries</h2>
-        <button class="btn quiet" id="refreshBtn" title="Reread the folder from disk">Refresh</button>
+        <span class="railswitch" id="railSwitch" role="group" aria-label="Show libraries or tags">
+          <button type="button" data-view="libs" aria-pressed="true">Libraries</button>
+          <button type="button" data-view="tags" aria-pressed="false">Tags</button>
+        </span>
+        <button class="btn quiet" id="refreshBtn" title="Reread the folder from disk" aria-label="Refresh">&#8635;</button>
         <button class="btn quiet collapseBtn" data-collapse="libs" title="Collapse libraries"></button>
       </div>
       <div class="rail-body" id="libsList"></div>
@@ -787,6 +809,7 @@ async function todayNote(pickLibrary = false) {
  * ------------------------------------------------------------------ */
 
 function renderLibs() {
+  if (tagsView) return;                     // the rail is showing tags instead
   el.libsList.innerHTML = '';
   if (!state.root) {
     el.libsList.innerHTML = `<p class="hint">Open a folder and every subfolder inside it becomes a library.</p>`;
@@ -912,6 +935,7 @@ async function warmCache(lib) {
 
 function renderNotes() {
   el.notesList.innerHTML = '';
+  if (currentTag) return renderTagNotes();
   if (!state.lib) {
     el.notesList.innerHTML = `<p class="hint">Choose a library on the left.</p>`;
     return;
@@ -1215,6 +1239,7 @@ const ABOUT = [
   'Every note is an ordinary <b>.md file</b> in a folder you chose, and every library is a folder inside it. Nothing is hidden in a database, so git, Obsidian and your backups all still work.',
   'Notes <b>save themselves</b> as you write. The status bar shows where that has got to.',
   'The reading pane handles headings, nested lists, tables, fenced code, quotes, links, images and strikethrough. <b>Checkboxes are live</b>: tick one and the file changes.',
+  'Write <b>#a-tag</b> or <b>#121</b> anywhere in a note and the Tags view in the left rail gathers every note carrying it, whichever library it sits in. Tags in the reading pane are clickable. Code and link addresses are left alone.',
   'New notes can start from a <b>template</b>. Anything in the <code>_templates</code> folder is offered when you make a note, with <code>{{title}}</code>, <code>{{date}}</code>, <code>{{date-long}}</code>, <code>{{day}}</code> and <code>{{time}}</code> filled in.',
   'Renaming, moving and copying write the new file, read it back to check it, and only then remove the old one. A move offers you <b>Undo</b> in the status bar.',
   'Your folder is <b>remembered between sessions</b>, along with the last note you had open and how you left the layout. The browser asks permission once each session before handing the files back.',
@@ -1244,6 +1269,140 @@ function openHelp() {
 
 $('#helpBtn').addEventListener('click', openHelp);
 $('#helpClose').addEventListener('click', () => helpDlg.close());
+
+/* ------------------------------------------------------------------ *
+ * Tags
+ *
+ * A tag is #word in the body of a note. Code, link targets and Markdown
+ * headings are left alone. Tags are gathered from the same index the
+ * jump palette uses, so they reach across every library.
+ * ------------------------------------------------------------------ */
+
+let tagsView = false, currentTag = null, tagList = [];
+
+function tagsIn(text) {
+  const clean = text
+    .replace(/```[\s\S]*?```/g, ' ')          // fenced code
+    .replace(/`[^`\n]*`/g, ' ')               // inline code
+    .replace(/\[[^\]]*\]\([^)]*\)/g, ' ');    // links and images, label and all
+  const re = /(^|[\s(\[])#([A-Za-z0-9][\w-]*(?:\/[A-Za-z0-9_-]+)*)/g;
+  const found = new Set();
+  let m;
+  while ((m = re.exec(clean)) !== null) found.add(m[2]);
+  return found;
+}
+
+function buildTags() {
+  const map = new Map();
+  for (const entry of index.entries) {
+    if (!entry.text) continue;
+    for (const raw of tagsIn(entry.text)) {
+      const key = raw.toLowerCase();
+      let rec = map.get(key);
+      if (!rec) map.set(key, rec = { key, label: raw, notes: [] });
+      rec.notes.push(entry);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.notes.length - a.notes.length || a.key.localeCompare(b.key));
+}
+
+async function setRailView(which) {
+  tagsView = which === 'tags';
+  document.querySelectorAll('#railSwitch button')
+    .forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === which)));
+  labelStubs();
+
+  if (!tagsView) {
+    currentTag = null;
+    renderLibs();
+    renderNotes();
+    return;
+  }
+  if (!state.root) {
+    el.libsList.innerHTML = '<p class="hint">Open a notes folder and any <b>#tags</b> you have written will gather here.</p>';
+    return;
+  }
+  el.libsList.innerHTML = '<p class="hint">Reading your notes…</p>';
+  if (index.stale) await buildIndex();
+  tagList = buildTags();
+  renderTags();
+  readIndexText();                              // fills in any text not read yet
+}
+
+function renderTags() {
+  if (!tagsView) return;
+  el.libsList.innerHTML = '';
+  if (!tagList.length) {
+    el.libsList.innerHTML = index.reading
+      ? '<p class="hint">Reading your notes…</p>'
+      : '<p class="hint">No tags yet. Write <b>#like-this</b> or <b>#121</b> anywhere in a note and it will show up here.</p>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const t of tagList) {
+    const b = document.createElement('button');
+    b.className = 'item tag';
+    b.setAttribute('aria-current', String(currentTag === t.key));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = '#' + t.label;
+    const sub = document.createElement('span');
+    sub.className = 'sub count';
+    sub.textContent = t.notes.length === 1 ? '1 note' : t.notes.length + ' notes';
+    b.append(name, sub);
+    b.addEventListener('click', () => pickTag(t.key));
+    frag.appendChild(b);
+  }
+  el.libsList.appendChild(frag);
+}
+
+function pickTag(key) {
+  currentTag = currentTag === key ? null : key;
+  renderTags();
+  renderNotes();
+  if (currentTag) setPane('notes');
+}
+
+async function showTag(key) {                   // from a tag clicked in the reading pane
+  if (!tagsView) await setRailView('tags');
+  currentTag = null;
+  pickTag(key);
+}
+
+function renderTagNotes() {
+  const rec = tagList.find(t => t.key === currentTag);
+  const q = state.query;
+  const rows = (rec ? rec.notes : []).filter(e =>
+    !q || e.title.toLowerCase().includes(q) || (e.text || '').toLowerCase().includes(q));
+
+  const banner = document.createElement('div');
+  banner.className = 'tagbanner';
+  banner.innerHTML = `<b>#${escapeHtml(rec ? rec.label : currentTag)}</b>` +
+    `<span>${rows.length} ${rows.length === 1 ? 'note' : 'notes'} across every library</span>`;
+  el.notesList.appendChild(banner);
+
+  if (!rows.length) {
+    el.notesList.insertAdjacentHTML('beforeend', '<p class="hint">Nothing here matches that filter.</p>');
+    return;
+  }
+
+  for (const entry of rows) {
+    const b = document.createElement('button');
+    b.className = 'item';
+    const open = state.note && state.lib && state.lib.name === entry.lib && state.note.name === entry.name;
+    b.setAttribute('aria-current', String(!!open));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = entry.title;
+    const sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.textContent = `${entry.lib} · ${shortDate(entry.modified)}`;
+    b.append(name, sub);
+    b.title = `${entry.lib}/${entry.name}`;
+    b.addEventListener('click', () => jumpTo(entry));
+    el.notesList.appendChild(b);
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * Jump palette: every note in every library, by title or by text
@@ -1282,10 +1441,15 @@ async function readIndexText(limit = 800) {
     if (e.text !== null || read >= limit) continue;
     try { e.text = await (await e.handle.getFile()).text(); } catch { e.text = ''; }
     index.text.set(e.lib + '/' + e.name, { modified: e.modified, text: e.text });
-    if (++read % 20 === 0 && palOpen) renderPalette();
+    if (++read % 20 === 0) refreshFromIndex();
   }
   index.reading = false;
+  refreshFromIndex();
+}
+
+function refreshFromIndex() {
   if (palOpen) renderPalette();
+  if (tagsView) { tagList = buildTags(); renderTags(); }
 }
 
 /* subsequence match, favouring runs and word beginnings */
@@ -1456,9 +1620,13 @@ async function saveNow() {
   try {
     await write(note.handle, text);
     state.cache.set(note.name, text);
-    index.text.delete(state.lib.name + '/' + note.name);
-    index.stale = true;
     note.modified = Date.now();
+    const key = state.lib.name + '/' + note.name;          // keep the index in step without a rescan
+    index.text.set(key, { modified: note.modified, text });
+    const held = index.entries.find(e => e.lib === state.lib.name && e.name === note.name);
+    if (held) { held.text = text; held.modified = note.modified; }
+    else index.stale = true;
+    if (tagsView) { tagList = buildTags(); renderTags(); }
     if (state.note === note && el.editor.value === text) { state.dirty = false; setSaved('saved'); }
     renderNotes();
   } catch (err) {
@@ -1546,16 +1714,28 @@ const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&l
 const safeUrl = u => /^(https?:|mailto:|#|\/|\.{0,2}\/)/i.test(u.trim()) ? u.trim() : '#';
 
 function inline(s) {
+  /* Anything generated is held aside as a placeholder, so the emphasis rules
+     below never chew on an href or a class name. Link text stays in the
+     stream, so bold and italic still work inside a link. */
+  const held = [];
+  const hold = html => `\u0000${held.push(html) - 1}\u0000`;
+
   return s
-    .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_, alt, u) => `<img src="${escapeHtml(safeUrl(u))}" alt="${alt}">`)
-    .replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (_, t, u) => `<a href="${escapeHtml(safeUrl(u))}" target="_blank" rel="noopener">${t}</a>`)
-    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, p, u) => `${p}<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${u}</a>`)
+    .replace(/`([^`]+)`/g, (_, c) => hold(`<code>${c}</code>`))
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g,
+      (_, alt, u) => hold(`<img src="${escapeHtml(safeUrl(u))}" alt="${alt}">`))
+    .replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g,
+      (_, t, u) => hold(`<a href="${escapeHtml(safeUrl(u))}" target="_blank" rel="noopener">`) + t + hold('</a>'))
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,
+      (_, p, u) => p + hold(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${u}</a>`))
+    .replace(/(^|[\s(\[])#([A-Za-z0-9][\w-]*(?:\/[A-Za-z0-9_-]+)*)/g,
+      (_, pre, tag) => pre + hold(`<a class="tag" href="#" data-tag="${tag.toLowerCase()}">#${tag}</a>`))
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     .replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>')
-    .replace(/ {2,}$/, '<br>');
+    .replace(/ {2,}$/, '<br>')
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => held[i]);
 }
 
 function markdown(src) {
@@ -2056,7 +2236,7 @@ const isCollapsed = which => rails[which].classList.contains('collapsed');
 
 function labelStubs() {
   const spines = [
-    ['libs', 'Libraries', 'Show libraries'],
+    ['libs', tagsView ? 'Tags' : 'Libraries', tagsView ? 'Show tags' : 'Show libraries'],
     ['notes', state.lib ? state.lib.name : 'Notes', 'Show notes']
   ];
   for (const [which, title, tip] of spines) {
@@ -2130,6 +2310,8 @@ el.reader.addEventListener('click', e => {
   if (act === 'pick-root') pickRoot();
   if (act === 'resume') resumeFolder();
   if (act === 'help') openHelp();
+  const tagged = e.target.closest('a.tag');
+  if (tagged) { e.preventDefault(); showTag(tagged.dataset.tag); }
 });
 
 el.forget.addEventListener('click', async () => {
@@ -2146,6 +2328,10 @@ el.forget.addEventListener('click', async () => {
 el.rootBtn.addEventListener('click', pickRoot);
 el.newLib.addEventListener('click', () => state.root && newLibrary());
 el.templates.addEventListener('click', openTemplates);
+$('#railSwitch').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setRailView(b.dataset.view);
+});
 el.today.addEventListener('click', () => todayNote());
 el.today.addEventListener('contextmenu', e => { e.preventDefault(); todayNote(true); });
 el.newNote.addEventListener('click', () => state.lib && newNote());
