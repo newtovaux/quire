@@ -89,6 +89,10 @@
   .rail-head h2{margin:0;font-size:12.5px;font-weight:600;color:var(--muted);flex:1;letter-spacing:.01em}
   .rail-body{flex:1;overflow:auto;padding:6px 0 20px}
   .rail-foot{border-top:1px solid var(--line-soft);padding:7px 10px}
+  .rail-foot.pair{display:flex;gap:6px}
+  .rail-foot.pair .grow{flex:1;min-width:0}
+  .btn.on{border-color:var(--brass-dim);background:#2c2617;color:var(--brass)}
+  .chooser .opt-note{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}
 
   /* collapsed rails shrink to a spine you can click to bring back */
   .rail.collapsed{flex:0 0 34px;width:34px}
@@ -166,6 +170,32 @@
     flex:1;width:100%;resize:none;border:0;outline:0;background:transparent;overflow:auto;
     color:var(--text);font:13.5px/1.7 var(--mono);padding:22px 24px 40vh;
     tab-size:2;white-space:pre-wrap;overflow-wrap:break-word;
+  }
+
+  /* ---------- find and replace ---------- */
+  .findbar{
+    flex:0 0 auto;display:flex;flex-direction:column;gap:5px;
+    padding:6px 8px;background:var(--panel-2);border-bottom:1px solid var(--line-soft);
+  }
+  .findbar[hidden]{display:none}
+  .find-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .findbar input{
+    flex:1;min-width:110px;background:var(--ink);border:1px solid var(--line);border-radius:6px;
+    color:var(--text);font:13px var(--sans);padding:5px 9px;
+  }
+  .findbar input.bad{border-color:var(--danger)}
+  .find-count{flex:0 0 auto;min-width:64px;text-align:right;font:11.5px var(--mono);color:var(--faint)}
+  .find-flags{display:flex;gap:2px;flex:0 0 auto}
+  .find-flags button{
+    border:1px solid transparent;background:none;color:var(--muted);border-radius:5px;
+    height:26px;min-width:29px;cursor:pointer;font:600 11.5px var(--mono);
+  }
+  .find-flags button:hover{background:#28303a;color:var(--text)}
+  .find-flags button[aria-pressed="true"]{background:#2c2617;color:var(--brass);border-color:var(--brass-dim)}
+  .findbar .btn{padding:4px 9px;font-size:12.5px}
+  .mirror{
+    position:absolute;left:-9999px;top:0;visibility:hidden;box-sizing:border-box;
+    white-space:pre-wrap;overflow-wrap:break-word;
   }
 
   /* ---------- writing toolbar ---------- */
@@ -294,6 +324,7 @@
   .help-body ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--muted);line-height:1.65}
   .help-body li{margin:0 0 5px}
   .help-body li b{color:var(--text);font-weight:600}
+  .help-body code{font:12px var(--mono);background:var(--panel-2);padding:1px 5px;border-radius:4px}
 
   /* ---------- dialogue ---------- */
   dialog{
@@ -364,8 +395,9 @@
         <button class="btn quiet collapseBtn" data-collapse="libs" title="Collapse libraries"></button>
       </div>
       <div class="rail-body" id="libsList"></div>
-      <div class="rail-foot">
-        <button class="btn" id="newLibBtn" style="width:100%">New library</button>
+      <div class="rail-foot pair">
+        <button class="btn grow" id="newLibBtn">New library</button>
+        <button class="btn quiet" id="templatesBtn" title="Edit the templates that new notes can start from" disabled>Templates</button>
       </div>
     </aside>
 
@@ -377,8 +409,9 @@
         <button class="btn quiet collapseBtn" data-collapse="notes" title="Collapse notes"></button>
       </div>
       <div class="rail-body" id="notesList"></div>
-      <div class="rail-foot">
-        <button class="btn primary" id="newNoteBtn" style="width:100%" disabled>New note</button>
+      <div class="rail-foot pair">
+        <button class="btn primary grow" id="newNoteBtn" disabled>New note</button>
+        <button class="btn" id="todayBtn" title="Today's daily note (right click to change which library holds them)" disabled>Today</button>
       </div>
     </aside>
 
@@ -393,6 +426,26 @@
       <div class="split">
         <div class="pane" id="editorPane">
           <div class="toolbar" id="toolbar" role="toolbar" aria-label="Markdown formatting"></div>
+          <div class="findbar" id="findbar" hidden>
+            <div class="find-row">
+              <input id="findInput" type="text" placeholder="Find in this note" autocomplete="off" spellcheck="false" aria-label="Find">
+              <span class="find-count" id="findCount"></span>
+              <span class="find-flags">
+                <button type="button" data-flag="case" title="Match case" aria-pressed="false">Aa</button>
+                <button type="button" data-flag="word" title="Whole words only" aria-pressed="false">|ab|</button>
+                <button type="button" data-flag="regex" title="Regular expression" aria-pressed="false">.*</button>
+              </span>
+              <button class="btn quiet" id="findPrev" title="Previous (Shift+Enter)">&uarr;</button>
+              <button class="btn quiet" id="findNext" title="Next (Enter)">&darr;</button>
+              <button class="btn quiet" id="findSwap" title="Show replace (Ctrl+H)">Replace</button>
+              <button class="btn quiet" id="findClose" title="Close (Esc)">&times;</button>
+            </div>
+            <div class="find-row" id="replaceRow" hidden>
+              <input id="replaceInput" type="text" placeholder="Replace with" autocomplete="off" spellcheck="false" aria-label="Replace with">
+              <button class="btn" id="replaceOne">Replace</button>
+              <button class="btn" id="replaceAll">Replace all</button>
+            </div>
+          </div>
           <textarea id="editor" spellcheck="true"
             placeholder="Write in Markdown, or use the buttons above."></textarea>
         </div>
@@ -456,7 +509,7 @@ const HAS_FSA = typeof window.showDirectoryPicker === 'function';
 const el = {
   rootName: $('#rootName'), rootBtn: $('#rootBtn'), refresh: $('#refreshBtn'),
   libsList: $('#libsList'), notesList: $('#notesList'),
-  newLib: $('#newLibBtn'), newNote: $('#newNoteBtn'),
+  newLib: $('#newLibBtn'), newNote: $('#newNoteBtn'), today: $('#todayBtn'), templates: $('#templatesBtn'),
   search: $('#search'), editor: $('#editor'), reader: $('#reader'),
   noteTitle: $('#noteTitle'), rename: $('#renameBtn'), del: $('#deleteBtn'), move: $('#moveBtn'),
   statPath: $('#statPath'), statCount: $('#statCount'), statSave: $('#statSave'), forget: $('#forgetBtn'),
@@ -605,12 +658,15 @@ async function resumeFolder() {
 async function loadLibraries() {
   const libs = [];
   for await (const entry of state.root.values()) {
-    if (entry.kind === 'directory' && !entry.name.startsWith('.')) libs.push({ name: entry.name, handle: entry, count: null });
+    if (entry.kind === 'directory' && !entry.name.startsWith('.') && entry.name !== TEMPLATES_DIR)
+      libs.push({ name: entry.name, handle: entry, count: null });
   }
   libs.sort((a, b) => a.name.localeCompare(b.name, 'en-GB', { numeric: true }));
   state.libs = libs;
   index.stale = true;
   el.newLib.disabled = false;
+  el.templates.disabled = false;
+  el.today.disabled = !libs.length;
   renderLibs();
   countLibraries();
   if (!state.lib && libs.length) {
@@ -626,6 +682,104 @@ async function countLibraries() {
     lib.count = n;
   }
   renderLibs();
+}
+
+/* ------------------------------------------------------------------ *
+ * Templates and daily notes
+ *
+ * Templates live in a _templates folder in the notes root. It is kept
+ * out of the library list, but you can open it and edit the templates
+ * as ordinary notes.
+ * ------------------------------------------------------------------ */
+
+const TEMPLATES_DIR = '_templates';
+
+const pad = n => String(n).padStart(2, '0');
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const longDate = d => d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+const STARTERS = [
+  ['Daily.md', '# {{date-long}}\n\n## Today\n\n- [ ] \n\n## Notes\n\n'],
+  ['Meeting.md', '# {{title}}\n\n{{date}} at {{time}}\n\n**Present:** \n\n## Notes\n\n## Actions\n\n- [ ] \n']
+];
+
+function fillTemplate(text, title, when = new Date()) {
+  return text
+    .replace(/\{\{\s*title\s*\}\}/gi, title)
+    .replace(/\{\{\s*date-long\s*\}\}/gi, longDate(when))
+    .replace(/\{\{\s*date\s*\}\}/gi, isoDate(when))
+    .replace(/\{\{\s*day\s*\}\}/gi, when.toLocaleDateString('en-GB', { weekday: 'long' }))
+    .replace(/\{\{\s*time\s*\}\}/gi, when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+}
+
+async function templatesDir(create = false) {
+  if (!state.root) return null;
+  try { return await state.root.getDirectoryHandle(TEMPLATES_DIR, { create }); } catch { return null; }
+}
+
+async function listTemplates() {
+  const dir = await templatesDir();
+  if (!dir) return [];
+  const out = [];
+  try {
+    for await (const entry of dir.values())
+      if (entry.kind === 'file' && isNote(entry.name)) out.push({ name: entry.name, title: titleOf(entry.name), handle: entry });
+  } catch { return []; }
+  return out.sort((a, b) => a.title.localeCompare(b.title, 'en-GB', { numeric: true }));
+}
+
+async function openTemplates() {
+  if (!state.root) return;
+  let dir = await templatesDir();
+  if (!dir) {
+    dir = await templatesDir(true);
+    if (!dir) return say('Could not make the templates folder.', true);
+    for (const [name, body] of STARTERS) {
+      const handle = await dir.getFileHandle(name, { create: true });
+      await write(handle, body);
+    }
+    say(`Made ${TEMPLATES_DIR} with two starters. Edit them like any other note.`);
+  }
+  await selectLibrary({ name: TEMPLATES_DIR, handle: dir, count: null, templates: true });
+}
+
+/* which library holds the daily notes */
+async function journalLibrary(ask_ = false) {
+  const saved = ask_ ? null : await recall('journal');
+  const known = saved && state.libs.find(l => l.name === saved);
+  if (known) return known;
+  if (!state.libs.length) { say('Make a library for your daily notes first.', true); return null; }
+  const picked = await chooseLibrary('Daily notes', 'Which library should hold them? Right click Today to change this later.');
+  if (picked) await remember('journal', picked.name);
+  return picked;
+}
+
+async function todayNote(pickLibrary = false) {
+  const lib = await journalLibrary(pickLibrary);
+  if (!lib) return;
+  const when = new Date();
+  const name = isoDate(when) + '.md';
+  try {
+    let made = false;
+    try { await lib.handle.getFileHandle(name); } catch {
+      const daily = (await listTemplates()).find(t => /^daily$/i.test(t.title));
+      const body = daily
+        ? fillTemplate(await (await daily.handle.getFile()).text(), longDate(when), when)
+        : `# ${longDate(when)}\n\n`;
+      await write(await lib.handle.getFileHandle(name, { create: true }), body);
+      made = true;
+    }
+    if (state.lib !== lib) {
+      state.want = { lib: lib.name, note: name };
+      await selectLibrary(lib);
+    } else {
+      await loadNotes();
+      const note = state.notes.find(n => n.name === name);
+      if (note) await openNote(note);
+    }
+    if (made) countLibraries();
+    say(`${made ? 'Started' : 'Opened'} the note for ${longDate(when)}`);
+  } catch (err) { say('Could not open today: ' + err.message, true); }
 }
 
 /* ------------------------------------------------------------------ *
@@ -678,6 +832,7 @@ function renderLibs() {
     frag.appendChild(b);
   }
   el.libsList.appendChild(frag);
+  el.templates.classList.toggle('on', !!(state.lib && state.lib.templates));
   labelStubs();
 }
 
@@ -850,10 +1005,22 @@ async function newNote() {
   const title = await ask('New note', 'The title becomes the file name, with .md on the end.', '');
   if (title === null) return;
   const base = cleanName(title) || 'Untitled';
+
+  let body = `# ${base}\n\n`;
+  if (!state.lib.templates) {
+    const templates = await listTemplates();
+    if (templates.length) {
+      const picked = await chooseFrom('Start from', `How should "${base}" begin?`,
+        [{ label: 'Blank note' }, ...templates.map(t => ({ label: t.title, tpl: t }))]);
+      if (!picked) return;
+      if (picked.tpl) body = fillTemplate(await (await picked.tpl.handle.getFile()).text(), base);
+    }
+  }
+
   try {
     const name = await uniqueName(state.lib.handle, base, '.md');
     const handle = await state.lib.handle.getFileHandle(name, { create: true });
-    await write(handle, `# ${base}\n\n`);
+    await write(handle, body);
     await loadNotes();
     const note = state.notes.find(n => n.name === name);
     if (note) {
@@ -946,32 +1113,42 @@ function undoMove() {
     .catch(err => say('Could not undo that move: ' + err.message, true));
 }
 
-/* pick a library from a list, for the Move button and anyone not using a mouse */
+/* pick one thing from a short list, for anyone not using a mouse */
 const chooser = $('#chooser');
-function chooseLibrary(title, help, exclude) {
+function chooseFrom(title, help, options, empty = 'Nothing to choose from yet.') {
   const list = $('#chList');
   $('#chTitle').textContent = title;
   $('#chHelp').textContent = help;
-  list.innerHTML = '';
-  const options = state.libs.filter(l => l !== exclude);
-  if (!options.length) {
-    list.innerHTML = '<p class="hint" style="padding:6px 0">There is nowhere else to put it yet. Make another library first.</p>';
-  }
-  for (const lib of options) {
+  list.innerHTML = options.length ? '' : `<p class="hint" style="padding:6px 0">${escapeHtml(empty)}</p>`;
+
+  options.forEach((opt, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = lib.name;
-    b.addEventListener('click', () => { chooser.dataset.pick = lib.name; chooser.close('ok'); });
+    b.textContent = opt.label;
+    if (opt.note) {
+      const n = document.createElement('span');
+      n.className = 'opt-note';
+      n.textContent = opt.note;
+      b.append(n);
+    }
+    b.addEventListener('click', () => { chooser.dataset.pick = String(i); chooser.close('ok'); });
     list.appendChild(b);
-  }
+  });
+
   delete chooser.dataset.pick;
   chooser.showModal();
   return new Promise(resolve => {
     chooser.addEventListener('close', () => {
-      const picked = chooser.returnValue === 'ok' && state.libs.find(l => l.name === chooser.dataset.pick);
-      resolve(picked || null);
+      const i = chooser.returnValue === 'ok' ? Number(chooser.dataset.pick) : -1;
+      resolve(options[i] || null);
     }, { once: true });
   });
+}
+
+function chooseLibrary(title, help, exclude) {
+  const options = state.libs.filter(l => l !== exclude).map(lib => ({ label: lib.name, lib }));
+  return chooseFrom(title, help, options, 'There is nowhere else to put it yet. Make another library first.')
+    .then(picked => picked && picked.lib);
 }
 
 async function moveCurrentNote() {
@@ -1007,7 +1184,9 @@ const SHORTCUTS = [
     [`${MOD}+K`, 'Jump to any note in any library, by title or by the words inside it'],
     ['/', 'Filter the notes in the library you are in'],
     ['\u2191 \u2193', 'Move through results, then Enter to open one'],
-    ['Esc', 'Close the palette, or clear the filter']
+    [`${MOD}+F`, 'Find in the note you are writing. Enter for the next, Shift+Enter for the one before'],
+    [`${MOD}+H`, 'Find and replace, with match case, whole words and regular expressions'],
+    ['Esc', 'Close the palette or the find bar, or clear the filter']
   ]],
   ['Writing', [
     [`${MOD}+S`, 'Save now. Notes also save themselves shortly after you stop typing'],
@@ -1021,7 +1200,9 @@ const SHORTCUTS = [
   ['Notes and libraries', [
     [`${MOD}+N`, 'New note in the library you are in'],
     ['Drag a note onto a library', 'Move it there. Hold Alt as you drop to copy instead', true],
-    ['Right click a library', 'Delete it, and everything in it', true]
+    ['Right click a library', 'Delete it, and everything in it', true],
+    ['Today', "Opens today's daily note, making it from your Daily template if you have one. Right click it to change which library holds them", true],
+    ['Templates', 'Opens the _templates folder so you can edit what new notes start from', true]
   ]],
   ['The window', [
     [`${MOD}+E`, 'Cycle Read, Split and Write'],
@@ -1034,6 +1215,7 @@ const ABOUT = [
   'Every note is an ordinary <b>.md file</b> in a folder you chose, and every library is a folder inside it. Nothing is hidden in a database, so git, Obsidian and your backups all still work.',
   'Notes <b>save themselves</b> as you write. The status bar shows where that has got to.',
   'The reading pane handles headings, nested lists, tables, fenced code, quotes, links, images and strikethrough. <b>Checkboxes are live</b>: tick one and the file changes.',
+  'New notes can start from a <b>template</b>. Anything in the <code>_templates</code> folder is offered when you make a note, with <code>{{title}}</code>, <code>{{date}}</code>, <code>{{date-long}}</code>, <code>{{day}}</code> and <code>{{time}}</code> filled in.',
   'Renaming, moving and copying write the new file, read it back to check it, and only then remove the old one. A move offers you <b>Undo</b> in the status bar.',
   'Your folder is <b>remembered between sessions</b>, along with the last note you had open and how you left the layout. The browser asks permission once each session before handing the files back.',
   'This needs the File System Access API, so a Chromium browser on the desktop, served over http rather than opened from a file.'
@@ -1308,6 +1490,7 @@ function setSaved(kind) {
 
 function draw() {
   const text = el.editor.value;
+  if (fnd.open) runSearch();
   el.reader.innerHTML = state.note ? markdown(text) : '';
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   el.statCount.textContent = state.note ? `${words} words · ${text.length} chars` : '';
@@ -1616,6 +1799,8 @@ el.editor.addEventListener('keydown', e => {
     return drop ? edit(from, from + drop[0].length, '', s - drop[0].length) : undefined;
   }
 
+  if (e.key === 'Escape' && fnd.open) { e.preventDefault(); return closeFind(); }
+
   if (e.key === 'Enter' && !e.shiftKey) {                        // carry on a list
     const upto = ta.value.slice(0, ta.selectionStart);
     const line = upto.slice(upto.lastIndexOf('\n') + 1);
@@ -1673,6 +1858,175 @@ function toggleTask(line) {
   el.readerPane.scrollTop = keep.reader;
   requestAnimationFrame(() => { syncing = false; });
 }
+
+/* ------------------------------------------------------------------ *
+ * Find and replace
+ *
+ * A textarea cannot paint highlights, so matches are counted here and
+ * the current one is selected in the text. Every replacement goes
+ * through edit(), which keeps undo and autosave working.
+ * ------------------------------------------------------------------ */
+
+const fnd = {
+  bar: $('#findbar'), input: $('#findInput'), count: $('#findCount'),
+  replaceRow: $('#replaceRow'), replaceInput: $('#replaceInput'),
+  open: false, matches: [], at: -1,
+  flags: { case: false, word: false, regex: false }
+};
+
+function findRegex(q) {
+  const src = fnd.flags.regex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const body = fnd.flags.word ? `\\b(?:${src})\\b` : src;
+  return new RegExp(body, 'g' + (fnd.flags.case ? '' : 'i'));
+}
+
+function runSearch() {
+  const q = fnd.input.value;
+  fnd.matches = [];
+  fnd.input.classList.remove('bad');
+  if (!q || !state.note) { fnd.at = -1; return paintFind(q ? 'no note' : ''); }
+
+  let re;
+  try { re = findRegex(q); } catch {
+    fnd.at = -1;
+    fnd.input.classList.add('bad');
+    return paintFind('bad pattern');
+  }
+
+  const v = el.editor.value;
+  let m;
+  while ((m = re.exec(v)) !== null && fnd.matches.length < 5000) {
+    if (m[0] === '') { re.lastIndex++; continue; }
+    fnd.matches.push([m.index, m.index + m[0].length]);
+  }
+
+  const caret = el.editor.selectionStart;
+  fnd.at = fnd.matches.findIndex(([start]) => start >= caret);
+  if (fnd.at < 0) fnd.at = fnd.matches.length ? 0 : -1;
+  paintFind();
+}
+
+function paintFind(message) {
+  const n = fnd.matches.length;
+  fnd.count.textContent = message !== undefined ? message
+    : !fnd.input.value ? ''
+    : n ? `${fnd.at + 1} of ${n}` : 'no matches';
+  $('#findPrev').disabled = $('#findNext').disabled = n < 2;
+  $('#replaceOne').disabled = $('#replaceAll').disabled = !n;
+}
+
+/* where in the text is this character, allowing for wrapped lines */
+let mirror = null;
+function offsetOf(index) {
+  const ta = el.editor, css = getComputedStyle(ta);
+  if (!mirror) { mirror = document.createElement('div'); mirror.className = 'mirror'; document.body.append(mirror); }
+  for (const prop of ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
+                      'paddingLeft', 'paddingRight', 'paddingTop', 'tabSize', 'textIndent'])
+    mirror.style[prop] = css[prop];
+  mirror.style.width = ta.clientWidth + 'px';
+  mirror.textContent = ta.value.slice(0, index);
+  const dot = document.createElement('span');
+  dot.textContent = '\u200b';
+  mirror.append(dot);
+  return dot.offsetTop;
+}
+
+function showMatch() {
+  const m = fnd.matches[fnd.at];
+  if (!m) return paintFind();
+  const ta = el.editor;
+  ta.setSelectionRange(m[0], m[1]);                 // no focus change: keep typing in the find box
+  const y = offsetOf(m[0]), h = ta.clientHeight;
+  if (y < ta.scrollTop + 30 || y > ta.scrollTop + h - 60) ta.scrollTop = Math.max(0, y - h / 3);
+  paintFind();
+}
+
+function step(by) {
+  if (!fnd.matches.length) return;
+  fnd.at = (fnd.at + by + fnd.matches.length) % fnd.matches.length;
+  showMatch();
+}
+
+function openFind(withReplace = false) {
+  if (!state.note) return say('Open a note first.');
+  if (document.body.dataset.mode === 'read') setMode('split');
+  fnd.open = true;
+  fnd.bar.hidden = false;
+  fnd.replaceRow.hidden = !withReplace && fnd.replaceRow.hidden;
+  const picked = el.editor.value.slice(el.editor.selectionStart, el.editor.selectionEnd);
+  if (picked && !picked.includes('\n')) fnd.input.value = picked;
+  fnd.input.focus();
+  fnd.input.select();
+  runSearch();
+}
+
+function closeFind() {
+  fnd.open = false;
+  fnd.bar.hidden = true;
+  fnd.matches = [];
+  el.editor.focus();
+}
+
+function replacementFor(text, q) {
+  if (!fnd.flags.regex) return fnd.replaceInput.value;
+  try {
+    return text.replace(new RegExp(findRegex(q).source, fnd.flags.case ? '' : 'i'), fnd.replaceInput.value);
+  } catch { return fnd.replaceInput.value; }
+}
+
+function replaceCurrent() {
+  const m = fnd.matches[fnd.at];
+  if (!m || !state.note) return;
+  const was = el.editor.value.slice(m[0], m[1]);
+  const now = replacementFor(was, fnd.input.value);
+  edit(m[0], m[1], now, m[0] + now.length);         // caret lands after it, so search moves on
+  fnd.input.focus();
+  showMatch();
+}
+
+function replaceEverything() {
+  if (!fnd.matches.length || !state.note) return;
+  const q = fnd.input.value, v = el.editor.value;
+  let next, n = fnd.matches.length;
+  try {
+    const with_ = fnd.flags.regex ? fnd.replaceInput.value : fnd.replaceInput.value.replace(/\$/g, '$$$$');
+    next = v.replace(findRegex(q), with_);
+  } catch { return; }
+  if (next === v) return;
+  const top = el.editor.scrollTop;
+  edit(0, v.length, next, 0);                       // one edit, so one undo
+  el.editor.scrollTop = top;
+  fnd.input.focus();
+  say(`Replaced ${n} ${n === 1 ? 'match' : 'matches'}`);
+}
+
+fnd.input.addEventListener('input', runSearch);
+fnd.input.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); return closeFind(); }
+  if (e.key === 'Enter') { e.preventDefault(); return step(e.shiftKey ? -1 : 1); }
+});
+fnd.replaceInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); return closeFind(); }
+  if (e.key === 'Enter') { e.preventDefault(); return e.shiftKey ? replaceEverything() : replaceCurrent(); }
+});
+$('#findNext').addEventListener('click', () => step(1));
+$('#findPrev').addEventListener('click', () => step(-1));
+$('#findClose').addEventListener('click', closeFind);
+$('#findSwap').addEventListener('click', () => {
+  fnd.replaceRow.hidden = !fnd.replaceRow.hidden;
+  (fnd.replaceRow.hidden ? fnd.input : fnd.replaceInput).focus();
+});
+$('#replaceOne').addEventListener('click', replaceCurrent);
+$('#replaceAll').addEventListener('click', replaceEverything);
+document.querySelectorAll('.find-flags button').forEach(b => {
+  b.addEventListener('click', () => {
+    const flag = b.dataset.flag;
+    fnd.flags[flag] = !fnd.flags[flag];
+    b.setAttribute('aria-pressed', String(fnd.flags[flag]));
+    runSearch();
+    fnd.input.focus();
+  });
+});
 
 /* ------------------------------------------------------------------ *
  * Chrome
@@ -1791,6 +2145,9 @@ el.forget.addEventListener('click', async () => {
 
 el.rootBtn.addEventListener('click', pickRoot);
 el.newLib.addEventListener('click', () => state.root && newLibrary());
+el.templates.addEventListener('click', openTemplates);
+el.today.addEventListener('click', () => todayNote());
+el.today.addEventListener('contextmenu', e => { e.preventDefault(); todayNote(true); });
 el.newNote.addEventListener('click', () => state.lib && newNote());
 el.move.addEventListener('click', moveCurrentNote);
 $('#chCancel').addEventListener('click', () => chooser.close('cancel'));
@@ -1821,6 +2178,8 @@ document.addEventListener('keydown', e => {
   const mod = e.ctrlKey || e.metaKey;
   const typing = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
 
+  if (mod && !palOpen && e.key.toLowerCase() === 'f') { e.preventDefault(); return openFind(); }
+  if (mod && !palOpen && e.key.toLowerCase() === 'h') { e.preventDefault(); return openFind(true); }
   if ((e.key === '?' || e.key === 'F1') && !typing) { e.preventDefault(); return openHelp(); }
   if (mod && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); return openPalette(); }
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); return saveNow(); }
