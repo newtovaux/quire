@@ -1,0 +1,1880 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quire &middot; Markdown notes on your own disk</title>
+<style>
+  :root{
+    --ink:      #191e24;
+    --panel:    #212831;
+    --panel-2:  #1c222a;
+    --line:     #2f3945;
+    --line-soft:#262e38;
+    --text:     #e2e7ed;
+    --muted:    #8d9aab;
+    --faint:    #66727f;
+    --brass:    #d3a253;
+    --brass-dim:#6b5327;
+    --danger:   #d97a72;
+    --paper:    #e8e3d9;
+    --paper-ink:#22262b;
+
+    --sans: ui-sans-serif, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+
+    --libs-w: 208px;
+    --notes-w: 286px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--ink);color:var(--text);
+    font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden;
+  }
+  button,input,textarea,select{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+  .shell{display:flex;flex-direction:column;height:100dvh}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;
+    padding:9px 14px;border-bottom:1px solid var(--line);background:var(--panel-2);
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .brand h1{margin:0;font:640 19px/1 var(--sans);letter-spacing:-.015em}
+  .rootname{
+    color:var(--muted);font:12.5px var(--mono);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34ch;
+  }
+  .spacer{flex:1}
+
+  .btn{
+    border:1px solid var(--line);background:var(--panel);border-radius:6px;
+    padding:5px 11px;font-size:13.5px;cursor:pointer;
+  }
+  .btn:hover{background:#28303a;border-color:#3d4b5b}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+  .btn.primary{border-color:var(--brass-dim);background:#2c2617;color:var(--brass)}
+  .btn.primary:hover{background:#36301d}
+  .btn.quiet{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn.quiet:hover{background:var(--panel);color:var(--text)}
+  .btn.warn:hover{color:var(--danger);border-color:#4a2f2c}
+
+  .modes{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .modes button{
+    border:0;background:var(--panel-2);padding:5px 12px;font-size:13px;
+    color:var(--muted);cursor:pointer;border-right:1px solid var(--line);
+  }
+  .modes button:last-child{border-right:0}
+  .modes button[aria-pressed="true"]{background:#2c2617;color:var(--brass)}
+
+  /* ---------- panes ---------- */
+  .main{flex:1;display:flex;min-height:0}
+
+  .rail{
+    display:flex;flex-direction:column;min-height:0;
+    background:var(--panel-2);border-right:1px solid var(--line);
+  }
+  .libs{flex:0 0 var(--libs-w)}
+  .notes{flex:0 0 var(--notes-w)}
+
+  .rail-head{
+    display:flex;align-items:center;gap:6px;
+    padding:8px 8px 8px 12px;border-bottom:1px solid var(--line-soft);min-height:44px;
+  }
+  .rail-head h2{margin:0;font-size:12.5px;font-weight:600;color:var(--muted);flex:1;letter-spacing:.01em}
+  .rail-body{flex:1;overflow:auto;padding:6px 0 20px}
+  .rail-foot{border-top:1px solid var(--line-soft);padding:7px 10px}
+
+  /* collapsed rails shrink to a spine you can click to bring back */
+  .rail.collapsed{flex:0 0 34px;width:34px}
+  .rail.collapsed > .rail-head,
+  .rail.collapsed > .rail-body,
+  .rail.collapsed > .rail-foot{display:none}
+  .rail.collapsed > .stub{display:flex}
+  .stub{
+    display:none;flex:1;flex-direction:column;align-items:center;gap:14px;
+    width:100%;padding:11px 0;border:0;background:none;color:var(--muted);cursor:pointer;
+  }
+  .stub:hover{background:#262e38;color:var(--text)}
+  .stub .vert{
+    writing-mode:vertical-rl;font-size:12px;letter-spacing:.03em;
+    overflow:hidden;text-overflow:ellipsis;max-height:calc(100% - 30px);
+  }
+  .collapseBtn{flex:0 0 auto;padding:0 5px;min-width:22px}
+
+  .item{
+    display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;
+    padding:7px 12px;line-height:1.35;
+  }
+  .item:hover{background:#262e38}
+  .item[aria-current="true"]{background:#2a3038;box-shadow:inset 2px 0 0 var(--brass)}
+  .item .name{display:block;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .sub{
+    display:block;font-size:11.5px;color:var(--faint);margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .item mark{background:#4a3c18;color:var(--brass);border-radius:2px}
+  .item[draggable="true"]{-webkit-user-drag:element}
+  .item.dragging{opacity:.4}
+  .lib.dropTarget{background:#33301f;box-shadow:inset 0 0 0 1px var(--brass-dim)}
+  .linkBtn{border:0;background:none;padding:0 0 0 4px;font:inherit;color:var(--brass);
+    text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+  .chooser{display:flex;flex-direction:column;gap:2px;max-height:46vh;overflow:auto;margin-top:4px}
+  .chooser button{
+    text-align:left;border:1px solid transparent;background:var(--panel-2);border-radius:6px;
+    padding:8px 11px;font-size:13.5px;cursor:pointer;
+  }
+  .chooser button:hover{border-color:var(--brass-dim);background:#2a3038}
+  .lib .name::before{content:"";display:inline-block;width:7px;height:7px;border-radius:2px;
+    background:var(--brass-dim);margin-right:8px;vertical-align:1px}
+  .lib[aria-current="true"] .name::before{background:var(--brass)}
+  .count{color:var(--faint);font:11px var(--mono)}
+
+  .search{
+    width:100%;background:var(--ink);border:1px solid var(--line);border-radius:6px;
+    color:var(--text);font-size:13px;padding:5px 9px;
+  }
+  .search::placeholder{color:var(--faint)}
+  .hint{padding:14px 14px;color:var(--faint);font-size:12.5px;line-height:1.6}
+  .hint b{color:var(--muted);font-weight:600}
+
+  /* ---------- editor / reader ---------- */
+  .work{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+  .work-head{
+    display:flex;align-items:center;gap:10px;padding:7px 12px;
+    border-bottom:1px solid var(--line);background:var(--panel-2);min-height:44px;
+  }
+  .noteTitle{
+    font-size:14px;font-weight:600;flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .noteTitle span{color:var(--faint);font-weight:400;font-size:12.5px}
+
+  .split{flex:1;display:flex;min-height:0}
+  .pane{flex:1;min-width:0;overflow:auto;position:relative}
+  .pane + .pane{border-left:1px solid var(--line)}
+  body[data-mode="read"]  #editorPane{display:none}
+  body[data-mode="write"] #readerPane{display:none}
+
+  #editorPane{display:flex;flex-direction:column;overflow:hidden}
+  #editor{
+    flex:1;width:100%;resize:none;border:0;outline:0;background:transparent;overflow:auto;
+    color:var(--text);font:13.5px/1.7 var(--mono);padding:22px 24px 40vh;
+    tab-size:2;white-space:pre-wrap;overflow-wrap:break-word;
+  }
+
+  /* ---------- writing toolbar ---------- */
+  .toolbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:1px;
+    padding:4px 8px;background:var(--panel-2);
+    border-bottom:1px solid var(--line-soft);
+    overflow-x:auto;scrollbar-width:thin;
+  }
+  .toolbar button{
+    flex:0 0 auto;border:0;background:none;color:var(--muted);cursor:pointer;
+    min-width:30px;height:27px;padding:0 6px;border-radius:5px;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .toolbar button:hover{background:#28303a;color:var(--text)}
+  .toolbar button:active{background:#2c2617;color:var(--brass)}
+  .toolbar .sep{flex:0 0 auto;width:1px;height:17px;background:var(--line);margin:0 6px}
+  .tb-h{font:600 12.5px/1 var(--sans);letter-spacing:.01em}
+  .tb-b{font:700 15px/1 var(--serif)}
+  .tb-i{font:italic 600 15px/1 var(--serif)}
+  .tb-s{font:600 14px/1 var(--serif);text-decoration:line-through}
+  body.no-note .toolbar{opacity:.35;pointer-events:none}
+
+  .reader{
+    max-width:68ch;margin:0 auto;padding:34px 30px 40vh;
+    font:17px/1.68 var(--serif);color:#eceff3;
+  }
+  .reader h1,.reader h2,.reader h3,.reader h4{
+    font-family:var(--sans);letter-spacing:-.015em;line-height:1.22;margin:1.7em 0 .55em;
+  }
+  .reader h1{font-size:28px;margin-top:0}
+  .reader h2{font-size:21px}
+  .reader h3{font-size:17.5px}
+  .reader h4{font-size:15.5px;color:var(--muted)}
+  .reader p,.reader ul,.reader ol,.reader blockquote,.reader table,.reader pre{margin:0 0 1.05em}
+  .reader li{margin:.25em 0}
+  .reader li > ul,.reader li > ol{margin:.25em 0}
+  .reader a{color:var(--brass);text-underline-offset:3px}
+  .reader code{font:.82em var(--mono);background:var(--panel);padding:1.5px 5px;border-radius:4px}
+  .reader pre{
+    background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;
+    padding:13px 15px;overflow:auto;font:13px/1.6 var(--mono);
+  }
+  .reader pre code{background:none;padding:0;font-size:inherit}
+  .reader blockquote{border-left:2px solid var(--brass-dim);padding-left:16px;color:var(--muted);font-style:italic}
+  .reader hr{border:0;border-top:1px solid var(--line);margin:2.2em 0}
+  .reader table{border-collapse:collapse;font:14px var(--sans);width:100%}
+  .reader th,.reader td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+  .reader th{background:var(--panel-2);font-weight:600}
+  .reader img{max-width:100%;border-radius:6px}
+  .reader .task{list-style:none;margin-left:-1.3em}
+  .reader .task input{margin-right:8px;accent-color:var(--brass);cursor:pointer;vertical-align:1px}
+  .reader .task.done{color:var(--muted)}
+
+  /* ---------- empty states ---------- */
+  .blank{height:100%;display:grid;place-items:center;padding:30px;text-align:center}
+  .blank-inner{max-width:48ch}
+  .blank h2{font-size:clamp(24px,3.6vw,36px);line-height:1.14;letter-spacing:-.025em;margin:0 0 14px;font-weight:600}
+  .blank p{color:var(--muted);margin:0 0 22px}
+  .blank .keys{margin-top:28px;color:var(--faint);font-size:12.5px;line-height:2.1}
+  kbd{font:11.5px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;
+    padding:2px 6px;background:var(--panel)}
+  body.dropping .blank-inner{outline:2px dashed var(--brass);outline-offset:24px;border-radius:8px}
+
+  /* ---------- status ---------- */
+  .status{
+    flex:0 0 auto;display:flex;gap:16px;align-items:center;
+    border-top:1px solid var(--line);background:var(--panel-2);
+    padding:5px 14px;font:11.5px var(--mono);color:#77828f;
+  }
+  .status .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .saved{color:#7fa07a}
+  .dirty{color:var(--brass)}
+  .bad{color:var(--danger)}
+
+  /* ---------- jump palette ---------- */
+  .palette{
+    position:fixed;inset:0;z-index:40;background:#0b0e12b8;
+    display:flex;justify-content:center;padding:11vh 16px 16px;
+  }
+  .palette[hidden]{display:none}
+  .palette-box{
+    width:min(640px,100%);max-height:74vh;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 26px 70px #000b;
+  }
+  #paletteInput{
+    border:0;border-bottom:1px solid var(--line);background:transparent;outline:0;
+    padding:15px 17px;font-size:16.5px;
+  }
+  #paletteInput::placeholder{color:var(--faint)}
+  .palette-list{overflow:auto;padding:6px;flex:1}
+  .presult{
+    display:block;width:100%;text-align:left;border:0;background:none;color:inherit;
+    padding:8px 11px;border-radius:7px;cursor:pointer;
+  }
+  .presult:hover{background:#262e38}
+  .presult[aria-selected="true"]{background:#2a3038;box-shadow:inset 2px 0 0 var(--brass)}
+  .presult .line{display:flex;gap:10px;align-items:baseline}
+  .presult .t{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .presult .l{flex:0 0 auto;font:11.5px var(--mono);color:var(--faint)}
+  .presult .s{
+    display:block;font-size:12px;color:var(--faint);margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .presult mark{background:#4a3c18;color:var(--brass);border-radius:2px}
+  .palette-foot{
+    display:flex;justify-content:space-between;gap:12px;padding:7px 13px;
+    border-top:1px solid var(--line-soft);font:11.5px var(--mono);color:var(--faint);
+  }
+  .palette-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:13.5px}
+
+  /* ---------- help ---------- */
+  dialog.help{width:min(620px,94vw)}
+  .help-body{padding:20px 24px 10px;overflow:auto;max-height:72vh}
+  .help-body h3{margin:0 0 3px;font-size:17px}
+  .help-body .lede{margin:0 0 20px;color:var(--muted);font-size:13.5px}
+  .help-body h4{
+    margin:20px 0 8px;font-size:12.5px;font-weight:600;color:var(--brass);
+    padding-bottom:5px;border-bottom:1px solid var(--line-soft);
+  }
+  .help-body h4:first-of-type{margin-top:0}
+  .keyrow{display:grid;grid-template-columns:minmax(110px,auto) 1fr;gap:7px 18px;align-items:baseline}
+  .keyrow dt{white-space:nowrap}
+  .keyrow dd{margin:0;font-size:13.5px;color:var(--muted)}
+  .keyrow dt .mouse{font-size:12.5px;color:var(--faint);white-space:normal}
+  .help-body ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--muted);line-height:1.65}
+  .help-body li{margin:0 0 5px}
+  .help-body li b{color:var(--text);font-weight:600}
+
+  /* ---------- dialogue ---------- */
+  dialog{
+    border:1px solid var(--line);background:var(--panel);color:var(--text);
+    border-radius:10px;padding:0;width:min(420px,92vw);box-shadow:0 24px 60px #000a;
+  }
+  dialog::backdrop{background:#0b0e12b8}
+  .dlg-body{padding:20px 22px 14px}
+  .dlg-body h3{margin:0 0 6px;font-size:16.5px}
+  .dlg-body p{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+  .dlg-body input{
+    width:100%;background:var(--ink);border:1px solid var(--line);border-radius:6px;
+    padding:8px 10px;font-size:14px;
+  }
+  .dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:0 22px 18px}
+  .err{color:var(--danger);font-size:12.5px;min-height:1.2em;margin:8px 0 0}
+
+  .backBtn{display:none}
+  @media (max-width:860px){
+    :root{--libs-w:100%;--notes-w:100%}
+    .rail{position:absolute;inset:0;z-index:5;border-right:0}
+    .main{position:relative}
+    .libs{display:none}
+    .notes{display:none}
+    body[data-pane="libs"] .libs{display:flex}
+    body[data-pane="notes"] .notes{display:flex}
+    body[data-pane="libs"] .work,body[data-pane="notes"] .work{visibility:hidden}
+    .rail.collapsed{flex:1 1 auto;width:100%}
+    .rail.collapsed > .rail-head{display:flex}
+    .rail.collapsed > .rail-body{display:block}
+    .rail.collapsed > .rail-foot{display:block}
+    .rail.collapsed > .stub{display:none}
+    .collapseBtn{display:none}
+    .backBtn{display:inline-flex}
+    .rootname{display:none}
+    .split{flex-direction:column}
+    body[data-mode="split"] #editorPane{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body data-mode="split">
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>Quire</h1>
+      <span class="rootname" id="rootName">no notes folder open</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="modes" id="modes" role="group" aria-label="View mode">
+      <button data-mode="read"  aria-pressed="false">Read</button>
+      <button data-mode="split" aria-pressed="true">Split</button>
+      <button data-mode="write" aria-pressed="false">Write</button>
+    </div>
+    <button class="btn quiet" id="forgetBtn" title="Stop reopening this folder when Quire starts" hidden>Forget folder</button>
+    <button class="btn" id="rootBtn">Open notes folder</button>
+    <button class="btn quiet" id="helpBtn" title="What this does, and the keys for it (?)" aria-label="Help">?</button>
+  </header>
+
+  <div class="main">
+
+    <aside class="rail libs" id="libsRail">
+      <button class="stub" data-expand="libs" title="Show libraries"></button>
+      <div class="rail-head">
+        <h2>Libraries</h2>
+        <button class="btn quiet" id="refreshBtn" title="Reread the folder from disk">Refresh</button>
+        <button class="btn quiet collapseBtn" data-collapse="libs" title="Collapse libraries"></button>
+      </div>
+      <div class="rail-body" id="libsList"></div>
+      <div class="rail-foot">
+        <button class="btn" id="newLibBtn" style="width:100%">New library</button>
+      </div>
+    </aside>
+
+    <aside class="rail notes" id="notesRail">
+      <button class="stub" data-expand="notes" title="Show notes"></button>
+      <div class="rail-head">
+        <button class="btn quiet backBtn" data-pane="libs">&larr;</button>
+        <input class="search" id="search" type="search" placeholder="Search titles and text" autocomplete="off" spellcheck="false">
+        <button class="btn quiet collapseBtn" data-collapse="notes" title="Collapse notes"></button>
+      </div>
+      <div class="rail-body" id="notesList"></div>
+      <div class="rail-foot">
+        <button class="btn primary" id="newNoteBtn" style="width:100%" disabled>New note</button>
+      </div>
+    </aside>
+
+    <section class="work">
+      <div class="work-head">
+        <button class="btn quiet backBtn" data-pane="notes">&larr;</button>
+        <div class="noteTitle" id="noteTitle">No note open</div>
+        <button class="btn quiet" id="moveBtn" disabled title="Move this note to another library">Move</button>
+        <button class="btn quiet" id="renameBtn" disabled>Rename</button>
+        <button class="btn quiet warn" id="deleteBtn" disabled>Delete</button>
+      </div>
+      <div class="split">
+        <div class="pane" id="editorPane">
+          <div class="toolbar" id="toolbar" role="toolbar" aria-label="Markdown formatting"></div>
+          <textarea id="editor" spellcheck="true"
+            placeholder="Write in Markdown, or use the buttons above."></textarea>
+        </div>
+        <div class="pane" id="readerPane"><div class="reader" id="reader"></div></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="status">
+    <span class="grow" id="statPath">Pick a folder to keep your notes in</span>
+    <span id="statCount"></span>
+    <span id="statSave"></span>
+  </footer>
+</div>
+
+<dialog id="help" class="help">
+  <div class="help-body" id="helpBody"></div>
+  <div class="dlg-foot"><button class="btn" id="helpClose">Close</button></div>
+</dialog>
+
+<div class="palette" id="palette" hidden>
+  <div class="palette-box" role="dialog" aria-modal="true" aria-label="Jump to a note">
+    <input id="paletteInput" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Jump to a note, or search the text of every library">
+    <div class="palette-list" id="paletteList" role="listbox"></div>
+    <div class="palette-foot"><span id="paletteStat"></span><span>&uarr;&darr; move &middot; Enter open &middot; Esc close</span></div>
+  </div>
+</div>
+
+<dialog id="chooser">
+  <div class="dlg-body">
+    <h3 id="chTitle">Move to</h3>
+    <p id="chHelp"></p>
+    <div class="chooser" id="chList"></div>
+  </div>
+  <div class="dlg-foot"><button class="btn" id="chCancel">Cancel</button></div>
+</dialog>
+
+<dialog id="prompt">
+  <form method="dialog">
+    <div class="dlg-body">
+      <h3 id="dlgTitle">Name</h3>
+      <p id="dlgHelp"></p>
+      <input id="dlgInput" autocomplete="off" spellcheck="false">
+      <p class="err" id="dlgErr"></p>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="dlgCancel">Cancel</button>
+      <button class="btn primary" id="dlgOk" value="ok">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+
+const $ = s => document.querySelector(s);
+const HAS_FSA = typeof window.showDirectoryPicker === 'function';
+
+const el = {
+  rootName: $('#rootName'), rootBtn: $('#rootBtn'), refresh: $('#refreshBtn'),
+  libsList: $('#libsList'), notesList: $('#notesList'),
+  newLib: $('#newLibBtn'), newNote: $('#newNoteBtn'),
+  search: $('#search'), editor: $('#editor'), reader: $('#reader'),
+  noteTitle: $('#noteTitle'), rename: $('#renameBtn'), del: $('#deleteBtn'), move: $('#moveBtn'),
+  statPath: $('#statPath'), statCount: $('#statCount'), statSave: $('#statSave'), forget: $('#forgetBtn'),
+  editorPane: $('#editorPane'), readerPane: $('#readerPane'), toolbar: $('#toolbar')
+};
+
+const state = {
+  root: null,          // FileSystemDirectoryHandle
+  libs: [],            // [{name, handle, count}]
+  lib: null,
+  notes: [],           // [{name, title, handle, size, modified}]
+  note: null,
+  text: '',
+  dirty: false,
+  query: '',
+  cache: new Map(),    // path -> text, for searching
+  saveTimer: null,
+  pending: null,       // a remembered folder waiting for permission
+  want: null           // library and note to reopen after a restart
+};
+
+/* ------------------------------------------------------------------ *
+ * Remembering the folder between sessions
+ *
+ * IndexedDB is the only store that can hold a directory handle. Chrome
+ * still asks for permission once per session before handing the folder
+ * back, so a remembered folder shows a button rather than opening itself.
+ * Everything here fails quietly if storage is unavailable.
+ * ------------------------------------------------------------------ */
+
+const DB_NAME = 'quire', STORE = 'handles';
+
+function idb(mode, run) {
+  return new Promise((resolve, reject) => {
+    let open;
+    try { open = indexedDB.open(DB_NAME, 1); } catch (err) { return reject(err); }
+    open.onupgradeneeded = () => open.result.createObjectStore(STORE);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction(STORE, mode);
+      const req = run(tx.objectStore(STORE));
+      tx.oncomplete = () => { db.close(); resolve(req ? req.result : undefined); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  });
+}
+
+const remember = (key, value) => idb('readwrite', st => st.put(value, key)).then(() => true).catch(() => false);
+const recall   = key => idb('readonly', st => st.get(key)).catch(() => null);
+const forget   = key => idb('readwrite', st => st.delete(key)).catch(() => {});
+
+const SAVE_DELAY = 700;
+
+/* ------------------------------------------------------------------ *
+ * Names and paths
+ * ------------------------------------------------------------------ */
+
+const ILLEGAL = /[\\/:*?"<>|\u0000-\u001f]/g;
+
+function cleanName(raw) {
+  const name = raw.replace(ILLEGAL, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').replace(/\.+$/, '');
+  return name.slice(0, 120);
+}
+
+const titleOf = filename => filename.replace(/\.(md|markdown|mdown)$/i, '');
+const isNote = filename => /\.(md|markdown|mdown)$/i.test(filename);
+
+async function uniqueName(dirHandle, base, ext = '') {
+  let candidate = base + ext, i = 2;
+  while (await exists(dirHandle, candidate)) candidate = `${base} ${i++}${ext}`;
+  return candidate;
+}
+
+async function exists(dirHandle, name) {
+  try { await dirHandle.getFileHandle(name); return true; } catch {}
+  try { await dirHandle.getDirectoryHandle(name); return true; } catch {}
+  return false;
+}
+
+/* ------------------------------------------------------------------ *
+ * Opening the notes root
+ * ------------------------------------------------------------------ */
+
+async function pickRoot() {
+  if (!HAS_FSA) return;
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'quire-notes' });
+    await useRoot(handle);
+  } catch (err) {
+    if (err.name !== 'AbortError') say('Could not open that folder: ' + err.message, true);
+  }
+}
+
+async function useRoot(handle, resuming = false) {
+  if (handle.queryPermission) {
+    let perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') return say('Writing was not allowed for that folder.', true);
+  }
+  await flushSave();
+  state.root = handle;
+  state.pending = null;
+  state.lib = state.note = null;
+  state.notes = [];
+  state.cache.clear();
+  state.want = resuming ? await recall('last') : null;
+  el.rootName.textContent = handle.name;
+  el.rootName.title = handle.name;
+  el.rootBtn.textContent = 'Change folder';
+
+  try {
+    await loadLibraries();
+  } catch (err) {                                   // moved, renamed or unplugged
+    state.root = null;
+    await forget('root');
+    el.forget.hidden = true;
+    showBlankNote();
+    return say(`Could not read "${handle.name}" any more, so it has been forgotten.`, true);
+  }
+
+  if (!state.note) showBlankNote();
+  el.forget.hidden = !(await remember('root', handle));
+  say('Notes folder: ' + handle.name);
+}
+
+async function restoreFolder() {
+  const saved = await recall('root');
+  if (!saved || !saved.queryPermission) return;
+  let perm = 'prompt';
+  try { perm = await saved.queryPermission({ mode: 'readwrite' }); } catch { return forget('root'); }
+  if (perm === 'granted') return useRoot(saved, true);
+  state.pending = saved;                            // needs a click before Chrome will hand it over
+  el.forget.hidden = false;
+  showBlankNote();
+}
+
+async function resumeFolder() {
+  const handle = state.pending;
+  if (!handle) return;
+  const perm = await handle.requestPermission({ mode: 'readwrite' });
+  if (perm !== 'granted') return say('Permission for that folder was refused.', true);
+  useRoot(handle, true);
+}
+
+async function loadLibraries() {
+  const libs = [];
+  for await (const entry of state.root.values()) {
+    if (entry.kind === 'directory' && !entry.name.startsWith('.')) libs.push({ name: entry.name, handle: entry, count: null });
+  }
+  libs.sort((a, b) => a.name.localeCompare(b.name, 'en-GB', { numeric: true }));
+  state.libs = libs;
+  index.stale = true;
+  el.newLib.disabled = false;
+  renderLibs();
+  countLibraries();
+  if (!state.lib && libs.length) {
+    const wanted = state.want && libs.find(l => l.name === state.want.lib);
+    await selectLibrary(wanted || libs[0]);
+  } else if (!libs.length) renderNotes();
+}
+
+async function countLibraries() {
+  for (const lib of state.libs) {
+    let n = 0;
+    for await (const entry of lib.handle.values()) if (entry.kind === 'file' && isNote(entry.name)) n++;
+    lib.count = n;
+  }
+  renderLibs();
+}
+
+/* ------------------------------------------------------------------ *
+ * Libraries
+ * ------------------------------------------------------------------ */
+
+function renderLibs() {
+  el.libsList.innerHTML = '';
+  if (!state.root) {
+    el.libsList.innerHTML = `<p class="hint">Open a folder and every subfolder inside it becomes a library.</p>`;
+    return;
+  }
+  if (!state.libs.length) {
+    el.libsList.innerHTML = `<p class="hint">No libraries yet. Make one below, for example <b>Work</b> or <b>Reading</b>.</p>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const lib of state.libs) {
+    const b = document.createElement('button');
+    b.className = 'item lib';
+    b.setAttribute('aria-current', String(state.lib === lib));
+    b.innerHTML = `<span class="name"></span>`;
+    b.querySelector('.name').textContent = lib.name;
+    if (lib.count !== null) {
+      const c = document.createElement('span');
+      c.className = 'sub count';
+      c.textContent = lib.count === 1 ? '1 note' : lib.count + ' notes';
+      b.appendChild(c);
+    }
+    b.title = lib.name + ' (right click to delete)';
+    b.addEventListener('click', () => selectLibrary(lib));
+    b.addEventListener('contextmenu', e => { e.preventDefault(); deleteLibrary(lib); });
+
+    b.addEventListener('dragover', ev => {
+      if (!drag || drag.from === lib) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = ev.altKey ? 'copy' : 'move';
+      b.classList.add('dropTarget');
+    });
+    b.addEventListener('dragleave', () => b.classList.remove('dropTarget'));
+    b.addEventListener('drop', ev => {
+      b.classList.remove('dropTarget');
+      if (!drag || drag.from === lib) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const { note, from } = drag;
+      drag = null;
+      moveNote(note, from, lib, ev.altKey);
+    });
+    frag.appendChild(b);
+  }
+  el.libsList.appendChild(frag);
+  labelStubs();
+}
+
+async function selectLibrary(lib) {
+  await flushSave();
+  state.lib = lib;
+  state.note = null;
+  state.cache.clear();
+  el.newNote.disabled = false;
+  renderLibs();
+  await loadNotes();
+
+  const want = state.want;
+  state.want = null;
+  const note = want && want.lib === lib.name ? state.notes.find(n => n.name === want.note) : null;
+  if (note) return openNote(note);
+
+  remember('last', { lib: lib.name, note: null });
+  showBlankNote();
+  setPane('notes');
+}
+
+async function newLibrary() {
+  const name = await ask('New library', 'Libraries are plain folders inside your notes folder.', '');
+  if (!name) return;
+  const safe = cleanName(name);
+  if (!safe) return say('That name cannot be used for a folder.', true);
+  try {
+    const handle = await state.root.getDirectoryHandle(safe, { create: true });
+    await loadLibraries();
+    const lib = state.libs.find(l => l.name === safe) || { name: safe, handle, count: 0 };
+    selectLibrary(lib);
+  } catch (err) { say('Could not create that library: ' + err.message, true); }
+}
+
+async function deleteLibrary(lib) {
+  const n = lib.count ?? '?';
+  if (!confirm(`Delete the library "${lib.name}" and the ${n} notes inside it?\n\nThis removes the folder from your disk.`)) return;
+  try {
+    await state.root.removeEntry(lib.name, { recursive: true });
+    if (state.lib === lib) { state.lib = null; state.note = null; state.notes = []; showBlankNote(); }
+    await loadLibraries();
+    renderNotes();
+    say(`Deleted library "${lib.name}"`);
+  } catch (err) { say('Could not delete that library: ' + err.message, true); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Notes
+ * ------------------------------------------------------------------ */
+
+async function loadNotes() {
+  const notes = [];
+  for await (const entry of state.lib.handle.values()) {
+    if (entry.kind !== 'file' || !isNote(entry.name)) continue;
+    const file = await entry.getFile();
+    notes.push({ name: entry.name, title: titleOf(entry.name), handle: entry, size: file.size, modified: file.lastModified });
+  }
+  notes.sort((a, b) => b.modified - a.modified);
+  state.notes = notes;
+  index.stale = true;
+  if (state.note) state.note = notes.find(n => n.name === state.note.name) || state.note;
+  renderNotes();
+  warmCache(state.lib);
+}
+
+/* Read the notes in the background so previews and searching are instant. */
+async function warmCache(lib) {
+  const batch = state.notes.slice(0, 300);
+  for (const note of batch) {
+    if (state.lib !== lib) return;
+    if (state.cache.has(note.name)) continue;
+    try { state.cache.set(note.name, await (await note.handle.getFile()).text()); } catch {}
+  }
+  if (state.lib === lib) renderNotes();
+}
+
+function renderNotes() {
+  el.notesList.innerHTML = '';
+  if (!state.lib) {
+    el.notesList.innerHTML = `<p class="hint">Choose a library on the left.</p>`;
+    return;
+  }
+  const q = state.query;
+  const rows = state.notes.map(note => {
+    const text = state.cache.get(note.name) || '';
+    const inTitle = !q || note.title.toLowerCase().includes(q);
+    const hit = q && !inTitle ? findLine(text, q) : null;
+    return { note, show: !q || inTitle || !!hit, snippet: hit || firstLine(text) };
+  }).filter(r => r.show);
+
+  if (!rows.length) {
+    el.notesList.innerHTML = q
+      ? `<p class="hint">Nothing matches “${escapeHtml(q)}”.</p>`
+      : `<p class="hint">This library is empty. Start your first note below.</p>`;
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  for (const { note, snippet } of rows) {
+    const b = document.createElement('button');
+    b.className = 'item';
+    b.setAttribute('aria-current', String(state.note === note));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = note.title;
+    const sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.innerHTML = (snippet ? highlight(snippet, q) + ' &middot; ' : '') + shortDate(note.modified);
+    b.append(name, sub);
+    b.addEventListener('click', () => openNote(note));
+
+    b.draggable = true;
+    b.title = note.title + ' (drag onto a library to move it, hold Alt to copy)';
+    b.addEventListener('dragstart', ev => {
+      drag = { note, from: state.lib };
+      b.classList.add('dragging');
+      ev.dataTransfer.effectAllowed = 'copyMove';
+      ev.dataTransfer.setData('text/plain', note.title);
+    });
+    b.addEventListener('dragend', () => { drag = null; b.classList.remove('dragging'); });
+
+    frag.appendChild(b);
+  }
+  el.notesList.appendChild(frag);
+}
+
+const firstLine = text => {
+  const line = text.split('\n').map(l => l.replace(/^#{1,6}\s*/, '').trim()).find(l => l.length);
+  return line ? line.slice(0, 90) : '';
+};
+
+function findLine(text, q) {
+  const i = text.toLowerCase().indexOf(q);
+  if (i < 0) return null;
+  const from = Math.max(0, i - 24);
+  return (from ? '…' : '') + text.slice(from, i + 66).replace(/\n/g, ' ');
+}
+
+function highlight(s, q) {
+  const safe = escapeHtml(s);
+  if (!q) return safe;
+  const i = safe.toLowerCase().indexOf(q);
+  return i < 0 ? safe : safe.slice(0, i) + '<mark>' + safe.slice(i, i + q.length) + '</mark>' + safe.slice(i + q.length);
+}
+
+async function openNote(note) {
+  await flushSave();
+  state.note = note;
+  const file = await note.handle.getFile();
+  state.text = await file.text();
+  state.cache.set(note.name, state.text);
+  state.dirty = false;
+  el.editor.value = state.text;
+  el.editor.scrollTop = 0;
+  el.noteTitle.innerHTML = '';
+  el.noteTitle.append(note.title, Object.assign(document.createElement('span'), { textContent: '  ' + note.name }));
+  el.rename.disabled = el.del.disabled = el.move.disabled = false;
+  document.body.classList.remove('no-note');
+  renderNotes();
+  draw();
+  remember('last', { lib: state.lib.name, note: note.name });
+  setSaved('opened');
+  say(`${state.lib.name}/${note.name}`);
+  setPane('work');
+  if (document.body.dataset.mode !== 'read') el.editor.focus();
+}
+
+async function newNote() {
+  const title = await ask('New note', 'The title becomes the file name, with .md on the end.', '');
+  if (title === null) return;
+  const base = cleanName(title) || 'Untitled';
+  try {
+    const name = await uniqueName(state.lib.handle, base, '.md');
+    const handle = await state.lib.handle.getFileHandle(name, { create: true });
+    await write(handle, `# ${base}\n\n`);
+    await loadNotes();
+    const note = state.notes.find(n => n.name === name);
+    if (note) {
+      await openNote(note);
+      el.editor.setSelectionRange(el.editor.value.length, el.editor.value.length);
+      document.body.dataset.mode === 'read' && setMode('split');
+      el.editor.focus();
+    }
+    countLibraries();
+  } catch (err) { say('Could not create that note: ' + err.message, true); }
+}
+
+async function renameNote() {
+  const note = state.note;
+  const next = await ask('Rename note', 'This renames the file on disk.', note.title);
+  if (!next) return;
+  const base = cleanName(next);
+  if (!base || base === note.title) return;
+  try {
+    await flushSave();
+    const name = await uniqueName(state.lib.handle, base, '.md');
+    const handle = await state.lib.handle.getFileHandle(name, { create: true });
+    await write(handle, state.text);
+    await state.lib.handle.removeEntry(note.name);
+    state.cache.delete(note.name);
+    await loadNotes();
+    const moved = state.notes.find(n => n.name === name);
+    if (moved) await openNote(moved);
+    say('Renamed to ' + name);
+  } catch (err) { say('Could not rename: ' + err.message, true); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Moving notes between libraries
+ *
+ * There is no move in the File System Access API, so this writes the
+ * copy, reads it back to be sure it landed, and only then removes the
+ * original. Nothing is deleted until the new file is known to be good.
+ * ------------------------------------------------------------------ */
+
+let drag = null;          // the note currently being dragged
+let lastMove = null;      // so the status bar can offer one step back
+
+async function moveNote(note, from, to, copy = false) {
+  if (!from || !to || from === to) return;
+  const verb = copy ? 'Copied' : 'Moved';
+  const wasOpen = state.note === note;
+
+  try {
+    if (wasOpen) await flushSave();
+    const text = state.cache.get(note.name) ?? await (await note.handle.getFile()).text();
+
+    const name = await uniqueName(to.handle, titleOf(note.name), '.md');
+    const target = await to.handle.getFileHandle(name, { create: true });
+    await write(target, text);
+
+    const check = await (await target.getFile()).text();
+    if (check !== text) throw new Error('the copy did not match the original, so nothing was removed');
+
+    if (!copy) {
+      if (wasOpen) { clearTimeout(state.saveTimer); state.dirty = false; state.note = null; }
+      await from.handle.removeEntry(note.name);
+      state.cache.delete(note.name);
+    }
+
+    lastMove = copy ? null : { name, from: to, to: from };
+    countLibraries();
+
+    if (!copy && wasOpen) {                       // follow the note to its new home
+      state.want = { lib: to.name, note: name };
+      await selectLibrary(to);
+    } else {
+      await loadNotes();
+    }
+
+    say(`${verb} "${titleOf(name)}" to ${to.name}`, false,
+        lastMove ? { label: 'Undo', run: undoMove } : null);
+  } catch (err) {
+    say(`Could not move "${note.title}": ` + err.message, true);
+  }
+}
+
+function undoMove() {
+  const back = lastMove;
+  lastMove = null;
+  if (!back) return;
+  const note = { name: back.name, title: titleOf(back.name), handle: null };
+  back.from.handle.getFileHandle(back.name)
+    .then(handle => moveNote({ ...note, handle }, back.from, back.to))
+    .catch(err => say('Could not undo that move: ' + err.message, true));
+}
+
+/* pick a library from a list, for the Move button and anyone not using a mouse */
+const chooser = $('#chooser');
+function chooseLibrary(title, help, exclude) {
+  const list = $('#chList');
+  $('#chTitle').textContent = title;
+  $('#chHelp').textContent = help;
+  list.innerHTML = '';
+  const options = state.libs.filter(l => l !== exclude);
+  if (!options.length) {
+    list.innerHTML = '<p class="hint" style="padding:6px 0">There is nowhere else to put it yet. Make another library first.</p>';
+  }
+  for (const lib of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = lib.name;
+    b.addEventListener('click', () => { chooser.dataset.pick = lib.name; chooser.close('ok'); });
+    list.appendChild(b);
+  }
+  delete chooser.dataset.pick;
+  chooser.showModal();
+  return new Promise(resolve => {
+    chooser.addEventListener('close', () => {
+      const picked = chooser.returnValue === 'ok' && state.libs.find(l => l.name === chooser.dataset.pick);
+      resolve(picked || null);
+    }, { once: true });
+  });
+}
+
+async function moveCurrentNote() {
+  if (!state.note) return;
+  const to = await chooseLibrary('Move note', `Where should "${state.note.title}" go?`, state.lib);
+  if (to) moveNote(state.note, state.lib, to);
+}
+
+async function deleteNote() {
+  const note = state.note;
+  if (!confirm(`Delete "${note.title}"?\n\nThe file is removed from your disk.`)) return;
+  clearTimeout(state.saveTimer);
+  state.dirty = false;
+  try {
+    await state.lib.handle.removeEntry(note.name);
+    state.cache.delete(note.name);
+    state.note = null;
+    await loadNotes();
+    showBlankNote();
+    countLibraries();
+    say(`Deleted "${note.title}"`);
+  } catch (err) { say('Could not delete: ' + err.message, true); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Help
+ * ------------------------------------------------------------------ */
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '\u2318' : 'Ctrl';
+
+const SHORTCUTS = [
+  ['Finding things', [
+    [`${MOD}+K`, 'Jump to any note in any library, by title or by the words inside it'],
+    ['/', 'Filter the notes in the library you are in'],
+    ['\u2191 \u2193', 'Move through results, then Enter to open one'],
+    ['Esc', 'Close the palette, or clear the filter']
+  ]],
+  ['Writing', [
+    [`${MOD}+S`, 'Save now. Notes also save themselves shortly after you stop typing'],
+    [`${MOD}+B`, 'Bold'],
+    [`${MOD}+I`, 'Italic'],
+    [`${MOD}+Shift+K`, 'Turn the selected words into a link'],
+    ['Tab', 'Indent, or Shift+Tab to pull a line back'],
+    ['Enter', 'Carries a list on. An empty item ends it'],
+    [`${MOD}+Z`, 'Undo, including toolbar changes and ticked boxes']
+  ]],
+  ['Notes and libraries', [
+    [`${MOD}+N`, 'New note in the library you are in'],
+    ['Drag a note onto a library', 'Move it there. Hold Alt as you drop to copy instead', true],
+    ['Right click a library', 'Delete it, and everything in it', true]
+  ]],
+  ['The window', [
+    [`${MOD}+E`, 'Cycle Read, Split and Write'],
+    [`${MOD}+\\`, 'Clear both lists out of the way, and bring them back'],
+    ['?', 'This panel']
+  ]]
+];
+
+const ABOUT = [
+  'Every note is an ordinary <b>.md file</b> in a folder you chose, and every library is a folder inside it. Nothing is hidden in a database, so git, Obsidian and your backups all still work.',
+  'Notes <b>save themselves</b> as you write. The status bar shows where that has got to.',
+  'The reading pane handles headings, nested lists, tables, fenced code, quotes, links, images and strikethrough. <b>Checkboxes are live</b>: tick one and the file changes.',
+  'Renaming, moving and copying write the new file, read it back to check it, and only then remove the old one. A move offers you <b>Undo</b> in the status bar.',
+  'Your folder is <b>remembered between sessions</b>, along with the last note you had open and how you left the layout. The browser asks permission once each session before handing the files back.',
+  'This needs the File System Access API, so a Chromium browser on the desktop, served over http rather than opened from a file.'
+];
+
+const helpDlg = $('#help');
+let helpDrawn = false;
+
+function drawHelp() {
+  const keys = str => str.split('+').map(k => `<kbd>${escapeHtml(k)}</kbd>`).join('+');
+  const parts = ['<h3>Quire</h3><p class="lede">Markdown notes kept as files you own.</p>'];
+
+  parts.push('<h4>What it does</h4><ul>' + ABOUT.map(l => `<li>${l}</li>`).join('') + '</ul>');
+  for (const [section, rows] of SHORTCUTS) {
+    parts.push(`<h4>${escapeHtml(section)}</h4><dl class="keyrow">` + rows.map(([k, what, mouse]) =>
+      `<dt>${mouse ? `<span class="mouse">${escapeHtml(k)}</span>` : keys(k)}</dt><dd>${escapeHtml(what)}</dd>`).join('') + '</dl>');
+  }
+  $('#helpBody').innerHTML = parts.join('');
+  helpDrawn = true;
+}
+
+function openHelp() {
+  if (!helpDrawn) drawHelp();
+  if (!helpDlg.open) helpDlg.showModal();
+}
+
+$('#helpBtn').addEventListener('click', openHelp);
+$('#helpClose').addEventListener('click', () => helpDlg.close());
+
+/* ------------------------------------------------------------------ *
+ * Jump palette: every note in every library, by title or by text
+ * ------------------------------------------------------------------ */
+
+const pal = { el: $('#palette'), input: $('#paletteInput'), list: $('#paletteList'), stat: $('#paletteStat') };
+const index = { entries: [], stale: true, reading: false, text: new Map() };
+let palOpen = false, palRows = [], palAt = 0;
+
+async function buildIndex() {
+  const entries = [];
+  for (const lib of state.libs) {
+    try {
+      for await (const entry of lib.handle.values()) {
+        if (entry.kind !== 'file' || !isNote(entry.name)) continue;
+        const file = await entry.getFile();
+        const held = index.text.get(lib.name + '/' + entry.name);
+        entries.push({
+          lib: lib.name, name: entry.name, title: titleOf(entry.name), handle: entry,
+          modified: file.lastModified,
+          text: held && held.modified === file.lastModified ? held.text : null
+        });
+      }
+    } catch {}                                   // a library that vanished under us
+  }
+  entries.sort((a, b) => b.modified - a.modified);
+  index.entries = entries;
+  index.stale = false;
+}
+
+async function readIndexText(limit = 800) {
+  if (index.reading) return;
+  index.reading = true;
+  let read = 0;
+  for (const e of index.entries) {
+    if (e.text !== null || read >= limit) continue;
+    try { e.text = await (await e.handle.getFile()).text(); } catch { e.text = ''; }
+    index.text.set(e.lib + '/' + e.name, { modified: e.modified, text: e.text });
+    if (++read % 20 === 0 && palOpen) renderPalette();
+  }
+  index.reading = false;
+  if (palOpen) renderPalette();
+}
+
+/* subsequence match, favouring runs and word beginnings */
+function fuzzy(text, q) {
+  const t = text.toLowerCase();
+  let at = 0, score = 0, run = 0;
+  const hits = [];
+  for (const ch of q) {
+    const i = t.indexOf(ch, at);
+    if (i < 0) return null;
+    if (i === at && at > 0) { run++; score += 6 + run; } else { run = 0; score += 1; }
+    if (i === 0 || /[\s\-_/.,(]/.test(t[i - 1])) score += 8;
+    score -= Math.min(i - at, 6) * 0.4;
+    hits.push(i);
+    at = i + 1;
+  }
+  return { score: score - text.length * 0.04, hits };
+}
+
+function markHits(text, hits) {
+  let out = '', last = 0;
+  for (const i of hits) { out += escapeHtml(text.slice(last, i)) + '<mark>' + escapeHtml(text[i]) + '</mark>'; last = i + 1; }
+  return out + escapeHtml(text.slice(last));
+}
+
+function searchIndex(raw) {
+  const q = raw.trim().toLowerCase();
+  if (!q) return index.entries.slice(0, 12).map(e => ({ e, hits: [], kind: 'recent' }));
+
+  const tight = q.replace(/\s+/g, '');
+  const named = [], texted = [];
+  for (const e of index.entries) {
+    const m = fuzzy(e.title, tight);
+    if (m) { named.push({ e, hits: m.hits, score: m.score, kind: 'title' }); continue; }
+    const p = fuzzy(e.lib + '/' + e.title, tight);
+    if (p) { named.push({ e, hits: [], score: p.score - 14, kind: 'path' }); continue; }
+    if (e.text) {
+      const snippet = findLine(e.text, q);
+      if (snippet) texted.push({ e, hits: [], kind: 'text', snippet });
+    }
+  }
+  named.sort((a, b) => b.score - a.score);
+  return [...named, ...texted].slice(0, 40);
+}
+
+function renderPalette() {
+  palRows = searchIndex(pal.input.value);
+  if (palAt >= palRows.length) palAt = Math.max(0, palRows.length - 1);
+  pal.list.innerHTML = '';
+
+  if (!palRows.length) {
+    pal.list.innerHTML = index.entries.length
+      ? '<p class="palette-empty">No note matches that.</p>'
+      : '<p class="palette-empty">No notes to jump to yet.</p>';
+  }
+
+  palRows.forEach((row, i) => {
+    const b = document.createElement('button');
+    b.className = 'presult';
+    b.type = 'button';
+    b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', String(i === palAt));
+    const title = row.hits.length ? markHits(row.e.title, row.hits) : escapeHtml(row.e.title);
+    b.innerHTML = `<span class="line"><span class="t">${title}</span><span class="l">${escapeHtml(row.e.lib)}</span></span>`;
+    if (row.snippet) {
+      const sn = document.createElement('span');
+      sn.className = 's';
+      sn.innerHTML = highlight(row.snippet, pal.input.value.trim().toLowerCase());
+      b.appendChild(sn);
+    }
+    b.addEventListener('mousemove', () => { if (palAt !== i) { palAt = i; markSelected(); } });
+    b.addEventListener('click', () => jumpTo(row.e));
+    pal.list.appendChild(b);
+  });
+
+  const total = index.entries.length;
+  pal.stat.textContent = index.reading
+    ? `reading text… ${total} notes`
+    : `${palRows.length} of ${total} ${total === 1 ? 'note' : 'notes'}`;
+}
+
+function markSelected() {
+  [...pal.list.children].forEach((c, i) => c.setAttribute && c.setAttribute('aria-selected', String(i === palAt)));
+  const active = pal.list.children[palAt];
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+}
+
+async function openPalette() {
+  if (!state.root) return say('Open a notes folder first.');
+  palOpen = true;
+  palAt = 0;
+  pal.input.value = '';
+  pal.el.hidden = false;
+  pal.list.innerHTML = '<p class="palette-empty">Gathering your notes…</p>';
+  pal.input.focus();
+  if (index.stale) await buildIndex();
+  if (!palOpen) return;
+  renderPalette();
+  readIndexText();
+}
+
+function closePalette() {
+  palOpen = false;
+  pal.el.hidden = true;
+}
+
+async function jumpTo(entry) {
+  closePalette();
+  const lib = state.libs.find(l => l.name === entry.lib);
+  if (!lib) { index.stale = true; return say(`Could not find the library "${entry.lib}" any more.`, true); }
+  if (state.lib === lib) {
+    const here = state.notes.find(n => n.name === entry.name);
+    if (here) return openNote(here);
+    await loadNotes();
+    const again = state.notes.find(n => n.name === entry.name);
+    if (again) return openNote(again);
+    index.stale = true;
+    return say(`"${entry.title}" is no longer in ${entry.lib}.`, true);
+  }
+  state.want = { lib: entry.lib, note: entry.name };
+  await selectLibrary(lib);
+}
+
+pal.input.addEventListener('input', () => { palAt = 0; renderPalette(); });
+pal.el.addEventListener('mousedown', e => { if (e.target === pal.el) closePalette(); });
+pal.input.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); return closePalette(); }
+  if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+    e.preventDefault();
+    palAt = Math.min(palAt + 1, palRows.length - 1);
+    return markSelected();
+  }
+  if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+    e.preventDefault();
+    palAt = Math.max(palAt - 1, 0);
+    return markSelected();
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const row = palRows[palAt];
+    if (row) jumpTo(row.e);
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Saving
+ * ------------------------------------------------------------------ */
+
+async function write(handle, text) {
+  const w = await handle.createWritable();
+  await w.write(text);
+  await w.close();
+}
+
+function markDirty() {
+  state.text = el.editor.value;
+  state.dirty = true;
+  setSaved('dirty');
+  clearTimeout(state.saveTimer);
+  state.saveTimer = setTimeout(saveNow, SAVE_DELAY);
+}
+
+async function saveNow() {
+  if (!state.note || !state.dirty) return;
+  clearTimeout(state.saveTimer);
+  const note = state.note, text = state.text;
+  setSaved('saving');
+  try {
+    await write(note.handle, text);
+    state.cache.set(note.name, text);
+    index.text.delete(state.lib.name + '/' + note.name);
+    index.stale = true;
+    note.modified = Date.now();
+    if (state.note === note && el.editor.value === text) { state.dirty = false; setSaved('saved'); }
+    renderNotes();
+  } catch (err) {
+    setSaved('error');
+    say('Save failed: ' + err.message, true);
+  }
+}
+
+const flushSave = () => state.dirty ? saveNow() : Promise.resolve();
+
+function setSaved(kind) {
+  const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const map = {
+    dirty:  ['dirty', 'unsaved'],
+    saving: ['dirty', 'saving…'],
+    saved:  ['saved', 'saved ' + now],
+    opened: ['saved', 'up to date'],
+    error:  ['bad', 'not saved'],
+    none:   ['', '']
+  };
+  const [cls, label] = map[kind] || map.none;
+  el.statSave.className = cls;
+  el.statSave.textContent = label;
+}
+
+/* ------------------------------------------------------------------ *
+ * Rendering the note
+ * ------------------------------------------------------------------ */
+
+function draw() {
+  const text = el.editor.value;
+  el.reader.innerHTML = state.note ? markdown(text) : '';
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  el.statCount.textContent = state.note ? `${words} words · ${text.length} chars` : '';
+}
+
+function showBlankNote() {
+  state.note = null;
+  state.text = '';
+  el.editor.value = '';
+  el.rename.disabled = el.del.disabled = el.move.disabled = true;
+  document.body.classList.add('no-note');
+  el.noteTitle.textContent = state.lib ? 'No note open' : 'No library open';
+  el.statCount.textContent = '';
+  setSaved('none');
+  el.reader.innerHTML = blankHtml();
+}
+
+function blankHtml() {
+  if (!HAS_FSA) return `<div class="blank"><div class="blank-inner">
+    <h2>This browser cannot write to your disk.</h2>
+    <p>Quire keeps notes as ordinary .md files in a folder you choose, which needs the File System Access API.
+       Chrome, Edge, Brave or Opera on the desktop will work. Firefox and Safari will not.</p></div></div>`;
+  if (!state.root && state.pending) return `<div class="blank"><div class="blank-inner">
+    <h2>Carry on where you left off.</h2>
+    <p>Your last folder is remembered, but the browser asks permission once each session before
+       it will hand the files back.</p>
+    <button class="btn primary" data-act="resume">Reopen ${escapeHtml(state.pending.name)}</button>
+    <p style="margin:18px 0 0"><button class="btn quiet" data-act="pick-root">Choose a different folder</button></p>
+    </div></div>`;
+  if (!state.root) return `<div class="blank"><div class="blank-inner">
+    <h2>Your notes stay as files you own.</h2>
+    <p>Choose a folder to be the notes root. Folders inside it are libraries, and each note is a plain
+       Markdown file you can read, back up or edit in anything else.</p>
+    <button class="btn primary" data-act="pick-root">Open notes folder</button>
+    <p style="margin:16px 0 0;font-size:13px">or drop a folder anywhere on this window</p>
+    <div class="keys"><kbd>Ctrl</kbd>+<kbd>K</kbd> jump to any note &nbsp; <kbd>Ctrl</kbd>+<kbd>N</kbd> new note &nbsp;
+      <kbd>Ctrl</kbd>+<kbd>S</kbd> save now<br><kbd>Ctrl</kbd>+<kbd>B</kbd> bold &nbsp; <kbd>Ctrl</kbd>+<kbd>I</kbd> italic &nbsp;
+      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> link &nbsp; <kbd>Ctrl</kbd>+<kbd>E</kbd> switch view &nbsp;
+      <kbd>Ctrl</kbd>+<kbd>\</kbd> hide the lists<br>
+      <button class="btn quiet" data-act="help" style="margin-top:12px">See everything Quire does</button></div></div></div>`;
+  if (!state.lib) return `<div class="blank"><div class="blank-inner">
+    <h2>Make your first library.</h2><p>A library is just a folder inside ${escapeHtml(state.root.name)}.</p></div></div>`;
+  return `<div class="blank"><div class="blank-inner">
+    <h2>${escapeHtml(state.lib.name)}</h2>
+    <p>Pick a note from the list, or start a new one.</p></div></div>`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Markdown
+ * ------------------------------------------------------------------ */
+
+const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const safeUrl = u => /^(https?:|mailto:|#|\/|\.{0,2}\/)/i.test(u.trim()) ? u.trim() : '#';
+
+function inline(s) {
+  return s
+    .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_, alt, u) => `<img src="${escapeHtml(safeUrl(u))}" alt="${alt}">`)
+    .replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (_, t, u) => `<a href="${escapeHtml(safeUrl(u))}" target="_blank" rel="noopener">${t}</a>`)
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, p, u) => `${p}<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${u}</a>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    .replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>')
+    .replace(/ {2,}$/, '<br>');
+}
+
+function markdown(src) {
+  const lines = escapeHtml(src.replace(/\r\n?/g, '\n')).split('\n');
+  const out = [];
+  const stack = [];                       // open lists: {tag, indent}
+
+  const closeLists = (toIndent = -1) => {
+    while (stack.length && stack[stack.length - 1].indent > toIndent) {
+      const open = stack.pop();
+      out.push(`</${open.tag}>` + (open.nested ? '</li>' : ''));
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, m => m.includes('  ') ? '  ' : '');
+    const bare = line.trim();
+
+    if (/^```/.test(bare)) {                                  // fenced code
+      closeLists();
+      const lang = bare.slice(3).trim();
+      const buf = [];
+      while (++i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i]);
+      out.push(`<pre><code${lang ? ` data-lang="${escapeHtml(lang)}"` : ''}>${buf.join('\n')}</code></pre>`);
+      continue;
+    }
+
+    if (!bare) { closeLists(); continue; }
+
+    /* table: a header row followed by a divider row */
+    if (bare.includes('|') && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1] || '')) {
+      closeLists();
+      const cells = row => row.trim().replace(/^\||\|$/g, '').split('|').map(c => inline(c.trim()));
+      const head = cells(bare);
+      const body = [];
+      i++;
+      while (i + 1 < lines.length && lines[i + 1].includes('|') && lines[i + 1].trim()) body.push(cells(lines[++i]));
+      out.push('<table><thead><tr>' + head.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>' +
+        body.map(r => '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
+      continue;
+    }
+
+    let m;
+    if ((m = bare.match(/^(#{1,6})\s+(.*)$/))) {
+      closeLists();
+      out.push(`<h${Math.min(m[1].length, 4)}>${inline(m[2])}</h${Math.min(m[1].length, 4)}>`);
+      continue;
+    }
+    if (/^([-*_])(\s*\1){2,}$/.test(bare)) { closeLists(); out.push('<hr>'); continue; }
+    if ((m = bare.match(/^&gt;\s?(.*)$/))) { closeLists(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
+
+    const indent = line.match(/^\s*/)[0].replace(/\t/g, '  ').length;
+    if ((m = bare.match(/^([-*+]|\d+[.)])\s+(.*)$/))) {
+      const tag = /^\d/.test(m[1]) ? 'ol' : 'ul';
+      closeLists(indent);
+      const top = stack[stack.length - 1];
+      if (!top) { out.push(`<${tag}>`); stack.push({ tag, indent, nested: false }); }
+      else if (indent > top.indent) {                       // nest inside the item above
+        const last = out[out.length - 1];
+        if (last && last.endsWith('</li>')) out[out.length - 1] = last.slice(0, -5);
+        out.push(`<${tag}>`);
+        stack.push({ tag, indent, nested: true });
+      } else if (top.tag !== tag) {
+        const open = stack.pop();
+        out.push(`</${open.tag}>` + (open.nested ? '</li>' : ''), `<${tag}>`);
+        stack.push({ tag, indent, nested: open.nested });
+      }
+      const task = m[2].match(/^\[([ xX])\]\s+(.*)$/);
+      const done = task && task[1] !== ' ';
+      out.push(task
+        ? `<li class="task${done ? ' done' : ''}"><input type="checkbox" data-line="${i}"` +
+          ` aria-label="${escapeHtml(task[2].replace(/[*_`~]/g, '').slice(0, 80))}"${done ? ' checked' : ''}>` +
+          `${inline(task[2])}</li>`
+        : `<li>${inline(m[2])}</li>`);
+      continue;
+    }
+
+    if (stack.length) { out.push(inline(bare) + ' '); continue; }   // lazy continuation
+    out.push(`<p>${inline(bare)}</p>`);
+  }
+  closeLists();
+  return out.join('\n');
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor behaviour
+ * ------------------------------------------------------------------ */
+
+/* Every change routes through edit(), so the browser keeps its own undo stack
+   and the input event still triggers autosave and the preview redraw. */
+function edit(start, end, text, selStart, selEnd) {
+  const ta = el.editor;
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  let done = false;
+  try {
+    done = text ? document.execCommand('insertText', false, text)
+                : (start === end || document.execCommand('delete'));
+  } catch { done = false; }
+  if (!done) {
+    ta.setRangeText(text, start, end, 'end');
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  if (selStart !== undefined) ta.setSelectionRange(selStart, selEnd ?? selStart);
+}
+
+const sel = () => {
+  const ta = el.editor;
+  return { s: ta.selectionStart, e: ta.selectionEnd, v: ta.value,
+           picked: ta.value.slice(ta.selectionStart, ta.selectionEnd) };
+};
+
+/* wrap the selection, or unwrap it if the marks are already there */
+function wrap(before, after = before, placeholder = '') {
+  const { s, e, v, picked } = sel();
+  if (v.slice(s - before.length, s) === before && v.slice(e, e + after.length) === after) {
+    return edit(s - before.length, e + after.length, picked, s - before.length, e - before.length);
+  }
+  if (picked.length > before.length + after.length && picked.startsWith(before) && picked.endsWith(after)) {
+    const inner = picked.slice(before.length, picked.length - after.length);
+    return edit(s, e, inner, s, s + inner.length);
+  }
+  const body = picked || placeholder;
+  edit(s, e, before + body + after, s + before.length, s + before.length + body.length);
+}
+
+/* add or strip a prefix on every line the selection touches */
+function lineStyle(strip, prefix, isOn) {
+  const { s: cs, e: ce, v } = sel();
+  const s = v.lastIndexOf('\n', cs - 1) + 1;
+  let e = v.indexOf('\n', ce);
+  if (e < 0) e = v.length;
+  const lines = v.slice(s, e).split('\n');
+  const on = lines.every(l => !l.trim() || isOn(l.trimStart()));
+  const next = lines.map((l, i) => {
+    const pad = l.match(/^\s*/)[0];
+    const body = l.slice(pad.length).replace(strip, '');
+    return on ? pad + body : pad + prefix(i) + body;
+  }).join('\n');
+  edit(s, e, next, s, s + next.length);
+}
+
+/* drop a block on its own lines, with a caret position inside it */
+function block(text, caret = 0, len = 0) {
+  const { s, e, v } = sel();
+  const lead = s > 0 && v[s - 1] !== '\n' ? '\n' : '';
+  const tail = v[e] && v[e] !== '\n' ? '\n' : '';
+  edit(s, e, lead + text + tail, s + lead.length + caret, s + lead.length + caret + len);
+}
+
+const LIST_RE = /^([-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)/;
+const heading = n => lineStyle(/^#{1,6}\s+/, () => '#'.repeat(n) + ' ', l => l.startsWith('#'.repeat(n) + ' '));
+const bullets = () => lineStyle(LIST_RE, () => '- ', l => /^[-*+]\s+(?!\[[ xX]\]\s)/.test(l));
+const numbers = () => lineStyle(LIST_RE, i => (i + 1) + '. ', l => /^\d+[.)]\s+/.test(l));
+const tasks   = () => lineStyle(LIST_RE, () => '- [ ] ', l => /^[-*+]\s+\[[ xX]\]\s+/.test(l));
+const quote   = () => lineStyle(/^>\s?/, () => '> ', l => l.startsWith('>'));
+const codeBlock = () => block('```\n' + (sel().picked || 'code') + '\n```\n', 3);
+const table = () => block('| Column | Column |\n| --- | --- |\n|  |  |\n|  |  |\n', 2, 6);
+const rule = () => block('---\n');
+
+async function link() {
+  const { s, e, picked } = sel();
+  const isUrl = /^(https?:\/\/|mailto:)\S+$/i.test(picked.trim());
+  const url = await ask('Add a link', 'Paste the address. Any words you had selected become the link text.',
+                        isUrl ? picked.trim() : 'https://');
+  if (!url) return;
+  const text = (!picked || isUrl) ? url.replace(/^https?:\/\//, '') : picked;
+  edit(s, e, `[${text}](${url})`, s + 1, s + 1 + text.length);
+}
+
+/* ---- the toolbar itself ---- */
+
+const svg = d => `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const GLYPH = {
+  code:  svg('<path d="M6 4.6L2.6 8 6 11.4M10 4.6L13.4 8 10 11.4"/>'),
+  link:  svg('<path d="M6.6 9.4a2.9 2.9 0 0 0 4.1 0l2.1-2.1a2.9 2.9 0 0 0-4.1-4.1l-.8.8"/><path d="M9.4 6.6a2.9 2.9 0 0 0-4.1 0L3.2 8.7a2.9 2.9 0 0 0 4.1 4.1l.8-.8"/>'),
+  ul:    svg('<path d="M6 4h8M6 8h8M6 12h8"/><circle cx="2.9" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="2.9" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="2.9" cy="12" r=".9" fill="currentColor" stroke="none"/>'),
+  ol:    svg('<path d="M6.5 4h7.5M6.5 8h7.5M6.5 12h7.5"/><text x="1" y="5.6" font-size="5.2" font-family="system-ui, sans-serif" fill="currentColor" stroke="none">1</text><text x="1" y="9.6" font-size="5.2" font-family="system-ui, sans-serif" fill="currentColor" stroke="none">2</text><text x="1" y="13.6" font-size="5.2" font-family="system-ui, sans-serif" fill="currentColor" stroke="none">3</text>'),
+  task:  svg('<rect x="1.8" y="2.4" width="11.4" height="11.4" rx="2.6"/><path d="M4.7 8.1l2.1 2.1 4.2-4.5"/>'),
+  quote: svg('<path d="M2.6 3.2v9.6" stroke-width="2"/><path d="M6.6 5.4h7M6.6 9.4h7"/>'),
+  block: svg('<rect x="1.6" y="2.8" width="12.8" height="10.4" rx="2.2"/><path d="M6.2 6.4L4.4 8l1.8 1.6M9.8 6.4L11.6 8l-1.8 1.6"/>'),
+  table: svg('<rect x="1.6" y="2.8" width="12.8" height="10.4" rx="1.8"/><path d="M1.6 6.4h12.8M6.1 6.4v6.8M10.1 6.4v6.8"/>'),
+  rule:  svg('<path d="M2 8h12"/><path d="M4 4.4h8M4 11.6h8" opacity=".4"/>')
+};
+
+const TOOLS = [
+  { label: 'H1', cls: 'tb-h', title: 'Heading 1', run: () => heading(1) },
+  { label: 'H2', cls: 'tb-h', title: 'Heading 2', run: () => heading(2) },
+  { label: 'H3', cls: 'tb-h', title: 'Heading 3', run: () => heading(3) },
+  { sep: true },
+  { label: 'B', cls: 'tb-b', title: 'Bold (Ctrl+B)', run: () => wrap('**', '**', 'bold') },
+  { label: 'I', cls: 'tb-i', title: 'Italic (Ctrl+I)', run: () => wrap('*', '*', 'italic') },
+  { label: 'S', cls: 'tb-s', title: 'Strikethrough', run: () => wrap('~~', '~~', 'struck out') },
+  { icon: GLYPH.code, title: 'Inline code', run: () => wrap('`', '`', 'code') },
+  { icon: GLYPH.link, title: 'Link (Ctrl+Shift+K)', run: link },
+  { sep: true },
+  { icon: GLYPH.ul, title: 'Bulleted list', run: bullets },
+  { icon: GLYPH.ol, title: 'Numbered list', run: numbers },
+  { icon: GLYPH.task, title: 'Task list', run: tasks },
+  { sep: true },
+  { icon: GLYPH.quote, title: 'Quote', run: quote },
+  { icon: GLYPH.block, title: 'Code block', run: codeBlock },
+  { icon: GLYPH.table, title: 'Table', run: table },
+  { icon: GLYPH.rule, title: 'Horizontal rule', run: rule }
+];
+
+for (const t of TOOLS) {
+  if (t.sep) { el.toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'sep' })); continue; }
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.title = t.title;
+  b.setAttribute('aria-label', t.title);
+  if (t.icon) b.innerHTML = t.icon;
+  else { b.className = t.cls; b.textContent = t.label; }
+  b.addEventListener('mousedown', e => e.preventDefault());   // keep the caret in the text
+  b.addEventListener('click', t.run);
+  el.toolbar.appendChild(b);
+}
+
+/* ---- typing ---- */
+
+el.editor.addEventListener('input', () => { markDirty(); draw(); });
+
+el.editor.addEventListener('keydown', e => {
+  const ta = el.editor;
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+
+  if (mod && !e.shiftKey && (key === 'b' || key === 'i')) {
+    e.preventDefault();
+    return wrap(key === 'b' ? '**' : '*', key === 'b' ? '**' : '*', key === 'b' ? 'bold' : 'italic');
+  }
+  if (mod && e.shiftKey && key === 'k') { e.preventDefault(); return link(); }
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const { s, e: en, v } = sel();
+    if (!e.shiftKey) return edit(s, en, '  ');
+    const from = v.lastIndexOf('\n', s - 1) + 1;                 // outdent the line
+    const drop = v.slice(from).match(/^ {1,2}/);
+    return drop ? edit(from, from + drop[0].length, '', s - drop[0].length) : undefined;
+  }
+
+  if (e.key === 'Enter' && !e.shiftKey) {                        // carry on a list
+    const upto = ta.value.slice(0, ta.selectionStart);
+    const line = upto.slice(upto.lastIndexOf('\n') + 1);
+    const m = line.match(/^(\s*)([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/);
+    if (!m) return;
+    e.preventDefault();
+    if (line.trim() === m[0].trim()) {                           // empty item, so end the list
+      return edit(ta.selectionStart - line.length, ta.selectionStart, '');
+    }
+    const bullet = /^\d/.test(m[2]) ? (parseInt(m[2], 10) + 1) + m[2].slice(-1) : m[2];
+    edit(ta.selectionStart, ta.selectionEnd, '\n' + m[1] + bullet + ' ' + (m[3] ? '[ ] ' : ''));
+  }
+});
+
+/* keep the reader roughly beside the editor in split view */
+let syncing = false;
+const sync = (from, to) => {
+  if (syncing) return;
+  syncing = true;
+  const range = from.scrollHeight - from.clientHeight;
+  if (range > 0) to.scrollTop = (from.scrollTop / range) * (to.scrollHeight - to.clientHeight);
+  requestAnimationFrame(() => { syncing = false; });
+};
+el.editor.addEventListener('scroll', () => document.body.dataset.mode === 'split' && sync(el.editor, el.readerPane));
+
+el.editor.addEventListener('dragover', e => {
+  if (drag) { e.preventDefault(); e.dataTransfer.dropEffect = 'none'; }   // notes belong in libraries
+});
+el.editor.addEventListener('drop', e => { if (drag) e.preventDefault(); });
+
+/* ticking a box in the reading pane edits the line it came from */
+el.reader.addEventListener('change', e => {
+  const box = e.target.closest('input[type="checkbox"][data-line]');
+  if (box) toggleTask(Number(box.dataset.line));
+});
+
+function toggleTask(line) {
+  if (!state.note || !Number.isInteger(line)) return;
+  const v = el.editor.value;
+  let start = 0;
+  for (let k = 0; k < line; k++) {
+    const nl = v.indexOf('\n', start);
+    if (nl < 0) return;
+    start = nl + 1;
+  }
+  const rest = v.slice(start, v.indexOf('\n', start) < 0 ? undefined : v.indexOf('\n', start));
+  const m = rest.match(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\]/);
+  if (!m) return draw();                                     // the text moved on, so just redraw
+
+  const caret = { s: el.editor.selectionStart, e: el.editor.selectionEnd };
+  const keep = { editor: el.editor.scrollTop, reader: el.readerPane.scrollTop };
+  syncing = true;                                            // hold both panes still
+  edit(start + m[1].length, start + m[1].length + 1, m[2] === ' ' ? 'x' : ' ', caret.s, caret.e);
+  el.editor.scrollTop = keep.editor;
+  el.readerPane.scrollTop = keep.reader;
+  requestAnimationFrame(() => { syncing = false; });
+}
+
+/* ------------------------------------------------------------------ *
+ * Chrome
+ * ------------------------------------------------------------------ */
+
+function setMode(mode) {
+  document.body.dataset.mode = mode;
+  document.querySelectorAll('#modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  if (mode !== 'read') el.editor.focus();
+}
+$('#modes').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setMode(b.dataset.mode);
+});
+
+function setPane(which) {
+  document.body.dataset.pane = which;
+}
+document.querySelectorAll('.backBtn').forEach(b => b.addEventListener('click', () => setPane(b.dataset.pane)));
+
+/* ---- collapsing the two rails out of the way ---- */
+
+const rails = { libs: $('#libsRail'), notes: $('#notesRail') };
+const chevron = dir => `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${dir === 'left' ? 'M9.8 3.6L5.4 8l4.4 4.4' : 'M6.2 3.6L10.6 8l-4.4 4.4'}"/></svg>`;
+
+const isCollapsed = which => rails[which].classList.contains('collapsed');
+
+function labelStubs() {
+  const spines = [
+    ['libs', 'Libraries', 'Show libraries'],
+    ['notes', state.lib ? state.lib.name : 'Notes', 'Show notes']
+  ];
+  for (const [which, title, tip] of spines) {
+    const stub = rails[which].querySelector('.stub');
+    stub.innerHTML = chevron('right');
+    const label = document.createElement('span');
+    label.className = 'vert';
+    label.textContent = title;
+    stub.append(label);
+    stub.title = tip;
+  }
+}
+
+function setCollapsed(which, collapsed, save = true) {
+  rails[which].classList.toggle('collapsed', collapsed);
+  rails[which].querySelector('[data-collapse]').setAttribute('aria-expanded', String(!collapsed));
+  labelStubs();
+  if (save) remember('ui', { libs: isCollapsed('libs'), notes: isCollapsed('notes') });
+}
+
+document.querySelectorAll('[data-collapse]').forEach(b => {
+  b.innerHTML = chevron('left');
+  b.addEventListener('click', () => setCollapsed(b.dataset.collapse, true));
+});
+document.querySelectorAll('[data-expand]').forEach(b =>
+  b.addEventListener('click', () => setCollapsed(b.dataset.expand, false)));
+
+labelStubs();
+recall('ui').then(ui => {
+  if (!ui) return;
+  setCollapsed('libs', !!ui.libs, false);
+  setCollapsed('notes', !!ui.notes, false);
+});
+
+function say(msg, bad = false, action = null) {
+  el.statPath.textContent = msg;
+  el.statPath.className = 'grow' + (bad ? ' bad' : '');
+  if (!action) return;
+  const b = document.createElement('button');
+  b.className = 'linkBtn';
+  b.textContent = action.label;
+  b.addEventListener('click', () => { say(''); action.run(); });
+  el.statPath.append(b);
+}
+
+const shortDate = ts => {
+  const d = new Date(ts), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : '2-digit' });
+};
+
+/* dialogue box, since window.prompt is blocked in some embedded contexts */
+const dlg = $('#prompt');
+function ask(title, help, value) {
+  $('#dlgTitle').textContent = title;
+  $('#dlgHelp').textContent = help;
+  $('#dlgErr').textContent = '';
+  $('#dlgInput').value = value;
+  dlg.showModal();
+  $('#dlgInput').select();
+  return new Promise(resolve => {
+    dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok' ? $('#dlgInput').value.trim() : null), { once: true });
+  });
+}
+
+$('#dlgCancel').addEventListener('click', () => dlg.close('cancel'));
+el.reader.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'pick-root') pickRoot();
+  if (act === 'resume') resumeFolder();
+  if (act === 'help') openHelp();
+});
+
+el.forget.addEventListener('click', async () => {
+  await forget('root');
+  await forget('last');
+  state.pending = null;
+  el.forget.hidden = true;
+  say(state.root
+    ? `Quire will not reopen "${state.root.name}" next time. It stays open for now.`
+    : 'Folder forgotten.');
+  if (!state.root) showBlankNote();
+});
+
+el.rootBtn.addEventListener('click', pickRoot);
+el.newLib.addEventListener('click', () => state.root && newLibrary());
+el.newNote.addEventListener('click', () => state.lib && newNote());
+el.move.addEventListener('click', moveCurrentNote);
+$('#chCancel').addEventListener('click', () => chooser.close('cancel'));
+el.rename.addEventListener('click', renameNote);
+el.del.addEventListener('click', deleteNote);
+el.refresh.addEventListener('click', async () => {
+  if (!state.root) return;
+  await flushSave();
+  state.cache.clear();
+  await loadLibraries();
+  if (state.lib) await loadNotes();
+  say('Reread from disk');
+});
+
+el.search.addEventListener('input', async () => {
+  state.query = el.search.value.trim().toLowerCase();
+  renderNotes();
+  if (state.query.length >= 2 && state.lib) {          // pull in text so the search covers content
+    for (const note of state.notes) {
+      if (state.cache.has(note.name)) continue;
+      state.cache.set(note.name, await (await note.handle.getFile()).text());
+    }
+    renderNotes();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  const mod = e.ctrlKey || e.metaKey;
+  const typing = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+
+  if ((e.key === '?' || e.key === 'F1') && !typing) { e.preventDefault(); return openHelp(); }
+  if (mod && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); return openPalette(); }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); return saveNow(); }
+  if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); return state.lib && newNote(); }
+  if (mod && e.key.toLowerCase() === 'e') {
+    e.preventDefault();
+    const order = ['read', 'split', 'write'];
+    return setMode(order[(order.indexOf(document.body.dataset.mode) + 1) % 3]);
+  }
+  if (mod && e.key === '\\') {                       // Ctrl+\ clears the rails away
+    e.preventDefault();
+    const any = isCollapsed('libs') || isCollapsed('notes');
+    setCollapsed('libs', !any, false);
+    setCollapsed('notes', !any);
+    return;
+  }
+  if (e.key === '/' && !typing) { e.preventDefault(); el.search.focus(); el.search.select(); }
+  if (e.key === 'Escape' && e.target === el.search) { el.search.value = ''; state.query = ''; renderNotes(); el.search.blur(); }
+});
+
+/* drop a folder to use it as the notes root */
+let dragDepth = 0;
+const fromDesktop = e => !drag && [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragenter', e => {
+  if (!fromDesktop(e)) return;
+  e.preventDefault();
+  if (++dragDepth === 1) document.body.classList.add('dropping');
+});
+document.addEventListener('dragover', e => { if (fromDesktop(e)) e.preventDefault(); });
+document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dropping'); } });
+document.addEventListener('drop', async e => {
+  dragDepth = 0;
+  document.body.classList.remove('dropping');
+  if (drag) return e.preventDefault();              // a note dropped somewhere unhelpful
+  e.preventDefault();
+  const item = e.dataTransfer.items?.[0];
+  if (!item?.getAsFileSystemHandle) return;
+  const handle = await item.getAsFileSystemHandle();
+  if (handle.kind === 'directory') useRoot(handle);
+  else say('Drop a folder, not a single file.', true);
+});
+
+window.addEventListener('beforeunload', e => {
+  if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+document.addEventListener('visibilitychange', () => document.hidden && flushSave());
+
+setPane('libs');
+el.rootBtn.disabled = !HAS_FSA;
+el.newLib.disabled = true;
+showBlankNote();
+if (!HAS_FSA) say('This browser has no File System Access API, so notes cannot be saved here.', true);
+else restoreFolder();
+})();
+</script>
+</body>
+</html>
